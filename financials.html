@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>BOOKWISE — Financials</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">B</div>
+      <div class="brand-name">Bookwise</div>
+    </div>
+    <div class="brand-sub">Minre Book Shop · Console</div>
+    <ul class="nav" id="nav">
+      <li class=""><a href="user-management.html"><span class="num">01</span> User Management</a></li>
+      <li class=""><a href="inventory.html"><span class="num">02</span> Inventory</a></li>
+      <li class=""><a href="suppliers.html"><span class="num">03</span> Suppliers</a></li>
+      <li class=""><a href="orders-pos.html"><span class="num">04</span> Orders &amp; POS</a></li>
+      <li class="active"><a href="financials.html"><span class="num">05</span> Financials</a></li>
+      <li class=""><a href="services-staff.html"><span class="num">06</span> Services &amp; Staff</a></li>
+    </ul>
+    <div class="sidebar-foot">
+      <div class="who">
+        <div class="avatar">TP</div>
+        <div>H M T N Perera<br><span style="color:#6f7ea3">Admin</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <section class="view active" id="v5">
+
+      <div class="topbar">
+        <div>
+          <h1>Financial Management</h1>
+          <p class="lede">Sales income, expenses, and payments — reported daily and monthly.</p>
+        </div>
+        <button class="btn btn-primary" onclick="window.open('financial-report.html', '_blank')">Generate Report</button>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><div class="stat-label">Revenue (MTD)</div><div class="stat-val">Rs. 812K</div><div class="stat-note">+8.4% vs last month</div></div>
+        <div class="stat alt"><div class="stat-label">Expenses (MTD)</div><div class="stat-val">Rs. 214K</div><div class="stat-note">Supplier + payroll</div></div>
+        <div class="stat"><div class="stat-label">Net Profit</div><div class="stat-val">Rs. 598K</div><div class="stat-note">Margin 73.6%</div></div>
+        <div class="stat warn"><div class="stat-label">Outstanding</div><div class="stat-val">Rs. 12,400</div><div class="stat-note down">2 unpaid invoices</div></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-head"><div><h3>Weekly Sales</h3><div class="sub">Mon – Sun, current week</div></div></div>
+          <div class="panel-body">
+            <div class="bars">
+              <div class="bar-wrap"><div class="bar" style="height:60px"></div><div class="bar-label">Mon</div></div>
+              <div class="bar-wrap"><div class="bar" style="height:82px"></div><div class="bar-label">Tue</div></div>
+              <div class="bar-wrap"><div class="bar" style="height:70px"></div><div class="bar-label">Wed</div></div>
+              <div class="bar-wrap"><div class="bar" style="height:105px"></div><div class="bar-label">Thu</div></div>
+              <div class="bar-wrap"><div class="bar" style="height:130px"></div><div class="bar-label">Fri</div></div>
+              <div class="bar-wrap"><div class="bar" style="height:150px"></div><div class="bar-label">Sat</div></div>
+              <div class="bar-wrap"><div class="bar" style="height:96px"></div><div class="bar-label">Sun</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><div><h3>Recent Transactions</h3></div></div>
+          <div class="panel-body flush">
+            <table>
+              <thead><tr><th>Ref</th><th>Type</th><th>Amount</th></tr></thead>
+              <tbody>
+                <tr><td class="cell-mono">INV-2291</td><td>Sale</td><td>Rs. 4,550</td></tr>
+                <tr><td class="cell-mono">PAY-0114</td><td>Supplier Payment</td><td>-Rs. 21,050</td></tr>
+                <tr><td class="cell-mono">INV-2290</td><td>Sale</td><td>Rs. 1,150</td></tr>
+                <tr><td class="cell-mono">EXP-0033</td><td>Utility Bill</td><td>-Rs. 6,200</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+<script src="script.js"></script>
+</body>
+</html>
