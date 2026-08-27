@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>BOOKWISE — New Purchase Order</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">B</div>
+      <div class="brand-name">Bookwise</div>
+    </div>
+    <div class="brand-sub">Minre Book Shop · Console</div>
+    <ul class="nav" id="nav">
+      <li class=""><a href="user-management.html"><span class="num">01</span> User Management</a></li>
+      <li class=""><a href="inventory.html"><span class="num">02</span> Inventory</a></li>
+      <li class="active"><a href="suppliers.html"><span class="num">03</span> Suppliers</a></li>
+      <li class=""><a href="orders-pos.html"><span class="num">04</span> Orders &amp; POS</a></li>
+      <li class=""><a href="financials.html"><span class="num">05</span> Financials</a></li>
+      <li class=""><a href="services-staff.html"><span class="num">06</span> Services &amp; Staff</a></li>
+    </ul>
+    <div class="sidebar-foot">
+      Role-based dashboard preview
+      <div class="who">
+        <div class="avatar">TP</div>
+        <div>H M T N Perera<br><span style="color:#6f7ea3">Admin</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <section class="view active" id="v3-po">
+
+      <div class="topbar">
+        <div>
+          <div class="crumb">Module 03 · Suppliers · Purchase Order</div>
+          <h1>New Purchase Order</h1>
+          <p class="lede">Select a supplier and list the items to be restocked. Inventory updates once the order is marked delivered.</p>
+        </div>
+        <button class="btn btn-ghost" onclick="window.location.href='suppliers.html'">Back to Suppliers</button>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div><h3>Order Details</h3><div class="sub">Supplier and delivery information</div></div>
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <label>Supplier</label>
+            <select id="poSupplier">
+              <option>Vijitha Yapa Distributors</option>
+              <option>Wasana Stationery Hub</option>
+              <option>Colombo Art Supplies</option>
+              <option>Metro Office Traders</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>PO Reference</label>
+            <input placeholder="Auto-generated, e.g. PO-0143" disabled>
+          </div>
+
+          <div class="field">
+            <label>Order Date</label>
+            <input type="date" id="poOrderDate">
+          </div>
+
+          <div class="field">
+            <label>Expected Delivery Date</label>
+            <input type="date" id="poExpectedDate">
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div><h3>Order Items</h3><div class="sub">Products included in this purchase order</div></div>
+          <button class="btn btn-ghost btn-sm" id="addItemBtn" type="button">+ Add Item</button>
+        </div>
+        <div class="panel-body flush">
+          <table>
+            <thead><tr><th>Product</th><th>Quantity</th><th>Unit Cost (Rs.)</th><th>Line Total</th><th></th></tr></thead>
+            <tbody id="poItemsBody">
+              <tr>
+                <td><input class="tag" style="border:1px solid var(--line); width:100%;" placeholder="e.g. Grade 10 Science Textbook"></td>
+                <td><input class="tag qty" style="border:1px solid var(--line); width:80px;" type="number" value="50" min="0"></td>
+                <td><input class="tag cost" style="border:1px solid var(--line); width:100px;" type="number" value="420" min="0"></td>
+                <td class="cell-mono line-total">Rs. 21,000</td>
+                <td><button class="icon-btn remove-btn" type="button">Remove</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="stats" style="grid-template-columns:1fr;">
+        <div class="stat">
+          <div class="stat-label">Order Total</div>
+          <div class="stat-val" id="orderTotalVal">Rs. 21,000</div>
+          <div class="stat-note" id="itemCountVal">Across 1 item</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div><h3>Notes</h3></div>
+        </div>
+        <div class="form-grid">
+          <div class="field full">
+            <label>Order Notes</label>
+            <input placeholder="Delivery instructions, special terms, etc.">
+          </div>
+        </div>
+        <div style="padding:0 22px 22px; display:flex; gap:10px;">
+          <button class="btn btn-primary" onclick="window.location.href='suppliers.html'">Save Purchase Order</button>
+          <button class="btn btn-ghost" onclick="window.location.href='suppliers.html'">Cancel</button>
+        </div>
+      </div>
+
+    </section>
+  </main>
+</div>
+<script src="script.js"></script>
+<script>
+  // --- Purchase order item rows: add, remove, live totals ---
+  (function () {
+    const itemsBody = document.getElementById('poItemsBody');
+    const addItemBtn = document.getElementById('addItemBtn');
+    const orderTotalEl = document.getElementById('orderTotalVal');
+    const itemCountEl = document.getElementById('itemCountVal');
+
+    function formatRs(n) {
+      return 'Rs. ' + n.toLocaleString('en-LK', { maximumFractionDigits: 0 });
+    }
+
+    function newRow() {
+      const tr = document.createElement('tr');
+      tr.innerHTML = [
+        '<td><input class="tag" style="border:1px solid var(--line); width:100%;" placeholder="Product name"></td>',
+        '<td><input class="tag qty" style="border:1px solid var(--line); width:80px;" type="number" value="0" min="0"></td>',
+        '<td><input class="tag cost" style="border:1px solid var(--line); width:100px;" type="number" value="0" min="0"></td>',
+        '<td class="cell-mono line-total">Rs. 0</td>',
+        '<td><button class="icon-btn remove-btn" type="button">Remove</button></td>'
+      ].join('');
+      return tr;
+    }
+
+    function recalc() {
+      const rows = itemsBody.querySelectorAll('tr');
+      let total = 0;
+
+      rows.forEach(row => {
+        const qty = parseFloat(row.querySelector('.qty').value) || 0;
+        const cost = parseFloat(row.querySelector('.cost').value) || 0;
+        const lineTotal = qty * cost;
+        row.querySelector('.line-total').textContent = formatRs(lineTotal);
+        total += lineTotal;
+      });
+
+      orderTotalEl.textContent = formatRs(total);
+      itemCountEl.textContent = 'Across ' + rows.length + (rows.length === 1 ? ' item' : ' items');
+    }
+
+    itemsBody.addEventListener('input', (e) => {
+      if (e.target.classList.contains('qty') || e.target.classList.contains('cost')) {
+        recalc();
+      }
+    });
+
+    itemsBody.addEventListener('click', (e) => {
+      if (e.target.classList.contains('remove-btn')) {
+        if (itemsBody.querySelectorAll('tr').length > 1) {
+          e.target.closest('tr').remove();
+          recalc();
+        }
+      }
+    });
+
+    addItemBtn.addEventListener('click', () => {
+      itemsBody.appendChild(newRow());
+      recalc();
+    });
+
+    recalc();
+  })();
+</script>
+</body>
+</html>

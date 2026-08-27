@@ -34,8 +34,153 @@
   </aside>
 
   <!-- MAIN -->
-  
+  <main class="main">
+    <section class="view active" id="v3">
+
+      <div class="topbar">
+        <div>
+          <div class="crumb">Module 03 · Supply Chain</div>
+          <h1>Supplier Management</h1>
+          <p class="lede">Maintain supplier records, raise purchase orders, and track restocking performance.</p>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <button class="btn btn-ghost" onclick="window.location.href='create-purchase-order.html'">+ New Purchase Order</button>
+          <button class="btn btn-primary" onclick="window.location.href='add-supplier.html'">+ Add Supplier</button>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><div class="stat-label">Total Suppliers</div><div class="stat-val">18</div><div class="stat-note">15 active · 3 inactive</div></div>
+        <div class="stat alt"><div class="stat-label">Active Purchase Orders</div><div class="stat-val">7</div><div class="stat-note">Awaiting delivery</div></div>
+        <div class="stat"><div class="stat-label">Purchase Value (MTD)</div><div class="stat-val">Rs. 112K</div><div class="stat-note">Paid to suppliers</div></div>
+        <div class="stat warn"><div class="stat-label">Overdue Deliveries</div><div class="stat-val">2</div><div class="stat-note down">Past expected date</div></div>
+      </div>
+
+      <div class="tag-row" id="categoryFilters">
+        <div class="tag active" data-filter="All Suppliers">All Suppliers</div>
+        <div class="tag" data-filter="Books">Books</div>
+        <div class="tag" data-filter="Stationery">Stationery</div>
+        <div class="tag" data-filter="Office Supplies">Office Supplies</div>
+        <div class="tag" data-filter="Art & Craft">Art &amp; Craft</div>
+        <div class="tag" data-filter="Inactive">Inactive</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div><h3>Supplier Directory</h3><div class="sub" id="supplierCount">18 suppliers · sorted by name</div></div>
+          <input class="tag" id="supplierSearch" style="border:1px solid var(--line)" placeholder="Search by supplier name" />
+        </div>
+        <div class="panel-body flush">
+          <table>
+            <thead><tr><th>Supplier</th><th>Contact Person</th><th>Phone</th><th>Category</th><th>Status</th><th></th></tr></thead>
+            <tbody id="supplierTableBody">
+              <tr data-category="Books" data-status="Active">
+                <td class="cell-strong">Vijitha Yapa Distributors</td>
+                <td>K. Ranasinghe</td>
+                <td class="cell-mono">077 221 5540</td>
+                <td>Books</td>
+                <td><span class="badge green">Active</span></td>
+                <td><button class="icon-btn">Edit</button></td>
+              </tr>
+              <tr data-category="Stationery" data-status="Active">
+                <td class="cell-strong">Wasana Stationery Hub</td>
+                <td>W. Perera</td>
+                <td class="cell-mono">071 449 8823</td>
+                <td>Stationery</td>
+                <td><span class="badge green">Active</span></td>
+                <td><button class="icon-btn">Edit</button></td>
+              </tr>
+              <tr data-category="Art & Craft" data-status="Active">
+                <td class="cell-strong">Colombo Art Supplies</td>
+                <td>D. Silva</td>
+                <td class="cell-mono">070 336 1290</td>
+                <td>Art &amp; Craft</td>
+                <td><span class="badge gold">Watch</span></td>
+                <td><button class="icon-btn">Edit</button></td>
+              </tr>
+              <tr data-category="Office Supplies" data-status="Inactive">
+                <td class="cell-strong">Metro Office Traders</td>
+                <td>N. Fernando</td>
+                <td class="cell-mono">076 902 4471</td>
+                <td>Office Supplies</td>
+                <td><span class="badge grey">Inactive</span></td>
+                <td><button class="icon-btn">Edit</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <div id="supplierEmptyState" style="display:none; padding:24px 22px; color:var(--muted); font-size:13px;">No suppliers match your search or filter.</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div><h3>Purchase Orders</h3><div class="sub">7 active · this month</div></div>
+          <button class="btn btn-ghost btn-sm" onclick="window.open('supplier-report.html', '_blank')">Generate Report</button>
+        </div>
+        <div class="panel-body flush">
+          <table>
+            <thead><tr><th>PO Ref</th><th>Supplier</th><th>Order Date</th><th>Expected</th><th>Total</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td class="cell-mono">PO-0142</td><td>Vijitha Yapa Distributors</td><td>21 Aug 2026</td><td>29 Aug 2026</td><td>Rs. 21,050</td><td><span class="badge gold">Pending</span></td></tr>
+              <tr><td class="cell-mono">PO-0141</td><td>Wasana Stationery Hub</td><td>18 Aug 2026</td><td>25 Aug 2026</td><td>Rs. 14,300</td><td><span class="badge red">Overdue</span></td></tr>
+              <tr><td class="cell-mono">PO-0139</td><td>Colombo Art Supplies</td><td>12 Aug 2026</td><td>19 Aug 2026</td><td>Rs. 9,800</td><td><span class="badge green">Delivered</span></td></tr>
+              <tr><td class="cell-mono">PO-0136</td><td>Vijitha Yapa Distributors</td><td>03 Aug 2026</td><td>10 Aug 2026</td><td>Rs. 18,600</td><td><span class="badge green">Delivered</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+  </main>
 </div>
 <script src="script.js"></script>
+<script>
+  // --- Supplier search & category/status filtering ---
+  (function () {
+    const tags = document.querySelectorAll('#categoryFilters .tag');
+    const rows = document.querySelectorAll('#supplierTableBody tr');
+    const searchInput = document.getElementById('supplierSearch');
+    const countLabel = document.getElementById('supplierCount');
+    const emptyState = document.getElementById('supplierEmptyState');
+    let activeFilter = 'All Suppliers';
+
+    function applyFilters() {
+      const query = searchInput.value.trim().toLowerCase();
+      let visibleCount = 0;
+
+      rows.forEach(row => {
+        const name = row.querySelector('.cell-strong').textContent.toLowerCase();
+        const category = row.dataset.category;
+        const status = row.dataset.status;
+
+        const matchesSearch = name.includes(query);
+        let matchesFilter = true;
+        if (activeFilter === 'Inactive') {
+          matchesFilter = status === 'Inactive';
+        } else if (activeFilter !== 'All Suppliers') {
+          matchesFilter = category === activeFilter;
+        }
+
+        const visible = matchesSearch && matchesFilter;
+        row.style.display = visible ? '' : 'none';
+        if (visible) visibleCount++;
+      });
+
+      countLabel.textContent = visibleCount + (visibleCount === 1 ? ' supplier' : ' suppliers') + ' · sorted by name';
+      emptyState.style.display = visibleCount === 0 ? 'block' : 'none';
+    }
+
+    tags.forEach(tag => {
+      tag.addEventListener('click', () => {
+        tags.forEach(t => t.classList.remove('active'));
+        tag.classList.add('active');
+        activeFilter = tag.dataset.filter;
+        applyFilters();
+      });
+    });
+
+    searchInput.addEventListener('input', applyFilters);
+  })();
+</script>
 </body>
 </html>

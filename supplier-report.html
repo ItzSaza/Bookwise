@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>BOOKWISE — Supplier Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #1B2A4A;
+    --burgundy: #7A2E2E;
+    --sage: #4F6F52;
+    --gold: #C9A227;
+    --ink: #232323;
+    --muted: #6b6459;
+    --cream: #F7F3EA;
+    --line: #E4DDCB;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    color: var(--ink);
+    background: #e5e5e5;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .page {
+    background: white;
+    width: 210mm;
+    min-height: 297mm;
+    margin: 40px auto;
+    padding: 12mm 15mm;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    border-radius: 8px;
+  }
+
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding-bottom: 20px;
+    border-bottom: 3px solid var(--burgundy);
+    margin-bottom: 20px;
+  }
+
+  .brand-area { display: flex; gap: 12px; }
+  .brand-mark {
+    width: 40px; height: 40px;
+    border-radius: 8px; background: var(--gold);
+    color: var(--navy); font-family: 'Fraunces', serif;
+    font-weight: 700; font-size: 22px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .brand-text h1 {
+    font-family: 'Fraunces', serif; font-size: 24px;
+    margin: 0 0 4px 0; color: var(--navy);
+  }
+  .brand-text p {
+    margin: 0; font-size: 11px; color: var(--muted); line-height: 1.4;
+  }
+
+  .report-meta { text-align: right; }
+  .report-meta h2 {
+    font-family: 'Inter', sans-serif; font-size: 14px;
+    text-transform: uppercase; letter-spacing: 1px;
+    color: var(--burgundy); margin: 0 0 6px 0;
+  }
+  .report-meta p {
+    margin: 2px 0; font-size: 10px; color: var(--muted);
+  }
+
+  .sub-meta {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    margin-bottom: 25px; font-size: 11px;
+  }
+  .sub-meta .label {
+    text-transform: uppercase; font-size: 9px;
+    color: var(--muted); letter-spacing: 0.5px; margin-bottom: 3px; font-weight: 600;
+  }
+  .sub-meta .val { font-weight: 600; color: var(--navy); }
+
+  .kpis {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 30px;
+  }
+  .kpi-card {
+    border: 1px solid var(--line);
+    padding: 12px 15px; text-align: left;
+  }
+  .kpi-card .label {
+    font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--muted); font-weight: 700; margin-bottom: 8px;
+  }
+  .kpi-card .val {
+    font-family: 'Fraunces', serif; font-size: 20px; font-weight: 600; color: var(--navy);
+  }
+  .kpi-card.rev { border-bottom: 3px solid var(--gold); }
+  .kpi-card.exp { border-bottom: 3px solid var(--sage); }
+  .kpi-card.net { border-bottom: 3px solid var(--burgundy); }
+  .kpi-card.mar { border-bottom: 3px solid var(--navy); }
+
+  .section-title {
+    font-size: 14px; font-weight: 700; color: var(--navy);
+    margin: 0 0 10px 0;
+  }
+  table {
+    width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 25px;
+  }
+  th {
+    background: var(--cream); color: var(--muted);
+    text-transform: uppercase; font-size: 9px; letter-spacing: 0.5px;
+    padding: 8px 12px; text-align: left; font-weight: 600;
+  }
+  td {
+    padding: 8px 12px; border-bottom: 1px solid #f0ecdf; color: var(--ink);
+  }
+  .total-row td {
+    font-weight: 700; color: var(--navy); border-bottom: none;
+  }
+
+  .badge {
+    display: inline-block; font-size: 10px; font-weight: 700;
+    padding: 2px 8px; border-radius: 12px;
+  }
+  .badge.green { background: #E8F0E6; color: var(--sage); }
+  .badge.gold { background: #FBF1D6; color: #9A7B12; }
+  .badge.red { background: #F5E4E1; color: var(--burgundy); }
+
+  .summary-banner {
+    background: var(--navy); color: white;
+    padding: 15px 20px; display: flex; justify-content: space-between;
+    align-items: center; border-radius: 4px; margin: 10px 0 30px;
+  }
+  .summary-banner .label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+  .summary-banner .val { font-family: 'Fraunces', serif; font-size: 24px; font-weight: 600; }
+
+  .signatures {
+    display: flex; justify-content: space-between; margin-top: 50px;
+  }
+  .sig-block { width: 200px; }
+  .sig-line {
+    border-bottom: 1px solid var(--line); margin-bottom: 8px; height: 30px;
+  }
+  .sig-name { font-size: 11px; font-weight: 600; color: var(--navy); margin: 0; }
+  .sig-role { font-size: 10px; color: var(--muted); margin: 2px 0 0; }
+
+  @media print {
+    body { background: white; margin: 0; }
+    .page {
+      margin: 0; padding: 0; box-shadow: none; border-radius: 0;
+      width: 100%; height: auto;
+    }
+    @page { margin: 15mm; size: A4; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header class="header">
+    <div class="brand-area">
+      <div class="brand-mark">B</div>
+      <div class="brand-text">
+        <h1>Bookwise</h1>
+        <p>Minre Book Shop - 684, Piliyandala, Colombo, Sri Lanka<br>
+        +94 112 288 253 - info@minrebookshop.lk</p>
+      </div>
+    </div>
+    <div class="report-meta">
+      <h2>Supplier &amp; Purchase Order Report</h2>
+      <p>Period: 01 Aug 2026 – 31 Aug 2026</p>
+    </div>
+  </header>
+
+  <div class="sub-meta">
+    <div>
+      <div class="label">Report Type</div>
+      <div class="val">Monthly Supplier Performance Summary</div>
+    </div>
+    <div>
+      <div class="label">Prepared By</div>
+      <div class="val">P D D Geethma - Supplier Management</div>
+    </div>
+    <div>
+      <div class="label">Status</div>
+      <div class="val">Final</div>
+    </div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi-card rev">
+      <div class="label">Active Suppliers</div>
+      <div class="val">15</div>
+    </div>
+    <div class="kpi-card exp">
+      <div class="label">Purchase Orders (MTD)</div>
+      <div class="val">7</div>
+    </div>
+    <div class="kpi-card net">
+      <div class="label">Total Purchase Value</div>
+      <div class="val">Rs. 112,000</div>
+    </div>
+    <div class="kpi-card mar">
+      <div class="label">On-Time Delivery Rate</div>
+      <div class="val">86%</div>
+    </div>
+  </div>
+
+  <h3 class="section-title">Supplier Performance</h3>
+  <table>
+    <thead><tr><th>Supplier</th><th>Category</th><th>Orders (MTD)</th><th>On-Time %</th><th>Total Value</th><th>Rating</th></tr></thead>
+    <tbody>
+      <tr><td>Vijitha Yapa Distributors</td><td>Books</td><td>3</td><td>100%</td><td>Rs. 60,650</td><td><span class="badge green">Excellent</span></td></tr>
+      <tr><td>Wasana Stationery Hub</td><td>Stationery</td><td>2</td><td>50%</td><td>Rs. 21,050</td><td><span class="badge gold">Watch</span></td></tr>
+      <tr><td>Colombo Art Supplies</td><td>Art &amp; Craft</td><td>1</td><td>100%</td><td>Rs. 9,800</td><td><span class="badge green">Excellent</span></td></tr>
+      <tr><td>Metro Office Traders</td><td>Office Supplies</td><td>1</td><td>0%</td><td>Rs. 20,500</td><td><span class="badge red">At Risk</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="summary-banner">
+    <div class="label">Total Supplier Payments This Month</div>
+    <div class="val">Rs. 112,000</div>
+  </div>
+
+  <h3 class="section-title">Purchase Order Ledger</h3>
+  <table>
+    <thead><tr><th>PO Ref</th><th>Supplier</th><th>Order Date</th><th>Expected</th><th>Total</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>PO-0142</td><td>Vijitha Yapa Distributors</td><td>21 Aug 2026</td><td>29 Aug 2026</td><td>Rs. 21,050</td><td><span class="badge gold">Pending</span></td></tr>
+      <tr><td>PO-0141</td><td>Wasana Stationery Hub</td><td>18 Aug 2026</td><td>25 Aug 2026</td><td>Rs. 14,300</td><td><span class="badge red">Overdue</span></td></tr>
+      <tr><td>PO-0139</td><td>Colombo Art Supplies</td><td>12 Aug 2026</td><td>19 Aug 2026</td><td>Rs. 9,800</td><td><span class="badge green">Delivered</span></td></tr>
+      <tr><td>PO-0136</td><td>Vijitha Yapa Distributors</td><td>03 Aug 2026</td><td>10 Aug 2026</td><td>Rs. 18,600</td><td><span class="badge green">Delivered</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="signatures">
+    <div class="sig-block">
+      <div class="sig-line"></div>
+      <p class="sig-name">P D D Geethma</p>
+      <p class="sig-role">Prepared By - Supplier Management</p>
+    </div>
+    <div class="sig-block">
+      <div class="sig-line"></div>
+      <p class="sig-name">H M T N Perera</p>
+      <p class="sig-role">Approved By - Business Owner</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.onload = function() {
+    setTimeout(() => {
+      window.print();
+    }, 500);
+  };
+</script>
+
+</body>
+</html>

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>BOOKWISE — Add New Supplier</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">B</div>
+      <div class="brand-name">Bookwise</div>
+    </div>
+    <div class="brand-sub">Minre Book Shop · Console</div>
+    <ul class="nav" id="nav">
+      <li class=""><a href="user-management.html"><span class="num">01</span> User Management</a></li>
+      <li class=""><a href="inventory.html"><span class="num">02</span> Inventory</a></li>
+      <li class="active"><a href="suppliers.html"><span class="num">03</span> Suppliers</a></li>
+      <li class=""><a href="orders-pos.html"><span class="num">04</span> Orders &amp; POS</a></li>
+      <li class=""><a href="financials.html"><span class="num">05</span> Financials</a></li>
+      <li class=""><a href="services-staff.html"><span class="num">06</span> Services &amp; Staff</a></li>
+    </ul>
+    <div class="sidebar-foot">
+      Role-based dashboard preview
+      <div class="who">
+        <div class="avatar">TP</div>
+        <div>H M T N Perera<br><span style="color:#6f7ea3">Admin</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <section class="view active" id="v3-add">
+
+      <div class="topbar">
+        <div>
+          <div class="crumb">Module 03 · Suppliers · New Record</div>
+          <h1>Add New Supplier</h1>
+          <p class="lede">Enter supplier contact and business details to add them to the supplier directory.</p>
+        </div>
+        <button class="btn btn-ghost" onclick="window.location.href='suppliers.html'">Back to Suppliers</button>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div><h3>Supplier Details</h3><div class="sub">Fill in the supplier's business and contact information</div></div>
+        </div>
+        <div class="form-grid">
+          <div class="field full">
+            <label>Supplier / Business Name</label>
+            <input placeholder="e.g. Vijitha Yapa Distributors">
+          </div>
+
+          <div class="field">
+            <label>Contact Person</label>
+            <input placeholder="e.g. K. Ranasinghe">
+          </div>
+
+          <div class="field">
+            <label>Phone Number</label>
+            <input placeholder="e.g. 077 221 5540">
+          </div>
+
+          <div class="field">
+            <label>Email Address</label>
+            <input type="email" placeholder="supplier@example.com">
+          </div>
+
+          <div class="field">
+            <label>Product Category Supplied</label>
+            <select>
+              <option>Books</option>
+              <option>School Books</option>
+              <option>Stationery</option>
+              <option>Office Supplies</option>
+              <option>Art &amp; Craft</option>
+              <option>Other</option>
+            </select>
+          </div>
+
+          <div class="field full">
+            <label>Address</label>
+            <input placeholder="e.g. 45 Galle Road, Colombo 03">
+          </div>
+
+          <div class="field">
+            <label>Payment Terms</label>
+            <select>
+              <option>Cash on Delivery</option>
+              <option>7 Days Credit</option>
+              <option>14 Days Credit</option>
+              <option>30 Days Credit</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>Status</label>
+            <select>
+              <option>Active</option>
+              <option>Inactive</option>
+            </select>
+          </div>
+
+          <div class="field full">
+            <label>Notes</label>
+            <input placeholder="Any additional notes about this supplier">
+          </div>
+        </div>
+
+        <div style="padding:0 22px 22px; display:flex; gap:10px;">
+          <!-- These buttons route back to the suppliers page for prototype flow -->
+          <button class="btn btn-primary" onclick="window.location.href='suppliers.html'">Save Supplier</button>
+          <button class="btn btn-ghost" onclick="window.location.href='suppliers.html'">Cancel</button>
+        </div>
+      </div>
+
+    </section>
+  </main>
+</div>
+<script src="script.js"></script>
+</body>
+</html>
