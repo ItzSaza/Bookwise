@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>BOOKWISE — Add New Product</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">B</div>
+      <div class="brand-name">Bookwise</div>
+    </div>
+    <div class="brand-sub">Minre Book Shop · Console</div>
+    <ul class="nav" id="nav">
+      <li class=""><a href="user-management.html"><span class="num">01</span> User Management</a></li>
+      <li class="active"><a href="inventory.html"><span class="num">02</span> Inventory</a></li>
+      <li class=""><a href="suppliers.html"><span class="num">03</span> Suppliers</a></li>
+      <li class=""><a href="orders-pos.html"><span class="num">04</span> Orders &amp; POS</a></li>
+      <li class=""><a href="financials.html"><span class="num">05</span> Financials</a></li>
+      <li class=""><a href="services-staff.html"><span class="num">06</span> Services &amp; Staff</a></li>
+    </ul>
+    <div class="sidebar-foot">
+      Role-based dashboard preview
+      <div class="who">
+        <div class="avatar">TP</div>
+        <div>H M T N Perera<br><span style="color:#6f7ea3">Admin</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <section class="view active" id="v2-add">
+
+      <div class="topbar">
+        <div>
+          <div class="crumb">Module 02 · Stock · New Item</div>
+          <h1>Add New Product</h1>
+          <p class="lede">Enter the details for a new inventory item to track its stock levels and pricing.</p>
+        </div>
+        <button class="btn btn-ghost" onclick="window.location.href='inventory.html'">Back to Catalog</button>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div><h3>Product Details</h3><div class="sub">Fill in the item specifications</div></div>
+        </div>
+        <div class="form-grid">
+          <div class="field full">
+            <label>Product Title / Name</label>
+            <input placeholder="e.g. Oxford English Dictionary">
+          </div>
+          
+          <div class="field">
+            <label>Category</label>
+            <select>
+              <option>Books</option>
+              <option>School Books</option>
+              <option>Stationery</option>
+              <option>Office Supplies</option>
+              <option>Art &amp; Craft</option>
+            </select>
+          </div>
+          
+          <div class="field">
+            <label>ISBN / Barcode</label>
+            <input placeholder="Scan or type barcode">
+          </div>
+          
+          <div class="field">
+            <label>Unit Price (Rs.)</label>
+            <input type="number" placeholder="0.00">
+          </div>
+          
+          <div class="field">
+            <label>Primary Supplier</label>
+            <select>
+              <option>Vijitha Yapa Distributors</option>
+              <option>Wasana Stationery Hub</option>
+              <option>Colombo Art Supplies</option>
+              <option>Other / Direct</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>Initial Stock Quantity</label>
+            <input type="number" placeholder="e.g. 50">
+          </div>
+          
+          <div class="field">
+            <label>Low Stock Reorder Level</label>
+            <input type="number" placeholder="e.g. 10">
+          </div>
+        </div>
+        
+        <div style="padding:0 22px 22px; display:flex; gap:10px;">
+          <!-- These buttons route back to the inventory page for prototype flow -->
+          <button class="btn btn-primary" onclick="window.location.href='inventory.html'">Save Product</button>
+          <button class="btn btn-ghost" onclick="window.location.href='inventory.html'">Cancel</button>
+        </div>
+      </div>
+
+    </section>
+  </main>
+</div>
+<script src="script.js"></script>
+</body>
+</html>

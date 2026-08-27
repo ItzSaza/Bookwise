@@ -34,6 +34,49 @@
   </aside>
 
   <!-- MAIN -->
+   <main class="main">
+    <section class="view active" id="v2">
+
+      <div class="topbar">
+        <div>
+          <div class="crumb">Module 02 · Stock</div>
+          <h1>Inventory Management</h1>
+          <p class="lede">Track books, stationery, and gift items with live stock counts and reorder alerts.</p>
+        </div>
+        <button class="btn btn-primary" onclick="window.location.href='add-product.html'">+ Add Product</button>
+      </div>
+
+      <div class="tag-row">
+        <div class="tag active">All Categories</div>
+        <div class="tag">Books</div>
+        <div class="tag">School Books</div>
+        <div class="tag">Stationery</div>
+        <div class="tag">Office Supplies</div>
+        <div class="tag">Art &amp; Craft</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div><h3>Product Catalog</h3><div class="sub">142 items · sorted by stock level</div></div>
+          <input class="tag" style="border:none" placeholder="Search by title" />
+        </div>
+        <div class="panel-body flush">
+          <table>
+            <thead><tr><th>Item</th><th>Category</th><th>Price</th><th>In Stock</th><th>Reorder Level</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              <tr><td class="cell-strong">Atomic Habits</td><td>Books</td><td>Rs. 2,350</td><td>34</td><td>10</td><td><span class="badge green">Healthy</span></td><td><button class="icon-btn">Edit</button></td></tr>
+              <tr><td class="cell-strong">Rich Dad Poor Dad</td><td>Books</td><td>Rs. 1,950</td><td>28</td><td>10</td><td><span class="badge green">Healthy</span></td><td><button class="icon-btn">Edit</button></td></tr>
+              <tr><td class="cell-strong">Grade 10 Science Textbook</td><td>School Books</td><td>Rs. 890</td><td>6</td><td>15</td><td><span class="badge red">Low Stock</span></td><td><button class="icon-btn">Edit</button></td></tr>
+              <tr><td class="cell-strong">Premium Gel Pens (10pcs)</td><td>Stationery</td><td>Rs. 850</td><td>52</td><td>20</td><td><span class="badge green">Healthy</span></td><td><button class="icon-btn">Edit</button></td></tr>
+              <tr><td class="cell-strong">A4 Spiral Notebook</td><td>Stationery</td><td>Rs. 300</td><td>9</td><td>25</td><td><span class="badge red">Low Stock</span></td><td><button class="icon-btn">Edit</button></td></tr>
+              <tr><td class="cell-strong">Office Stapler Set</td><td>Office Supplies</td><td>Rs. 1,200</td><td>17</td><td>8</td><td><span class="badge green">Healthy</span></td><td><button class="icon-btn">Edit</button></td></tr>
+              <tr><td class="cell-strong">Watercolour Paint Set</td><td>Art &amp; Craft</td><td>Rs. 2,100</td><td>11</td><td>12</td><td><span class="badge gold">Watch</span></td><td><button class="icon-btn">Edit</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
 </div>
 <script src="script.js"></script>
 </body>
