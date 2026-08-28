@@ -127,3 +127,80 @@ tr:hover td{background:#FBF9F3;}
   .sidebar{position:relative;height:auto;}
   .stats,.grid-2,.grid-3,.form-grid{grid-template-columns:1fr;}
 }
+
+/* =========================================
+   USER MANAGEMENT MODULE
+   ========================================= */
+
+.user-toolbar{
+  display:flex;
+  gap:12px;
+  align-items:center;
+  margin-bottom:18px;
+  flex-wrap:wrap;
+}
+
+.user-search{
+  flex:1;
+  min-width:240px;
+}
+
+.user-filter{
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:10px 12px;
+  background:#FCFAF4;
+  color:var(--ink);
+  font-family:'Inter',sans-serif;
+  font-size:13px;
+  outline:none;
+}
+
+.user-filter:focus{
+  border-color:var(--navy);
+}
+
+.user-form-panel{
+  display:none;
+}
+
+.user-form-panel.show{
+  display:block;
+}
+
+.user-form-panel .form-grid{
+  padding-bottom:24px;
+}
+
+#usersTable td:last-child{
+  width:180px;
+}
+
+#usersTable .icon-btn{
+  background:var(--paper);
+}
+
+@media(max-width:900px){
+
+  .user-toolbar{
+    flex-direction:column;
+    align-items:stretch;
+  }
+
+  .user-search{
+    width:100%;
+  }
+
+  .user-filter{
+    width:100%;
+  }
+
+  #usersTable{
+    min-width:750px;
+  }
+
+  .panel-body{
+    overflow-x:auto;
+  }
+
+}

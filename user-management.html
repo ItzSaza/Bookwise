@@ -32,6 +32,238 @@
       </div>
     </div>
   </aside>
+    <!-- USER MANAGEMENT MAIN CONTENT -->
+  <main class="main">
+
+    <!-- PAGE HEADER -->
+    <div class="topbar">
+      <div>
+        <div class="crumb">Module 01 · Admin</div>
+        <h1>User Management</h1>
+        <div class="lede">
+          Create accounts, assign roles, and manage system users and employee records.
+        </div>
+      </div>
+    </div>
+
+    <!-- SUMMARY CARDS -->
+    <section class="stats">
+
+      <div class="stat">
+        <div class="stat-label">Active Users</div>
+        <div class="stat-val" id="activeUserCount">18</div>
+        <div class="stat-note">Currently active</div>
+      </div>
+
+      <div class="stat alt">
+        <div class="stat-label">Admin Users</div>
+        <div class="stat-val" id="adminCount">2</div>
+        <div class="stat-note">System administrators</div>
+      </div>
+
+      <div class="stat">
+        <div class="stat-label">Staff Users</div>
+        <div class="stat-val" id="staffCount">3</div>
+        <div class="stat-note">Active staff members</div>
+      </div>
+
+      <div class="stat warn">
+        <div class="stat-label">Inactive Users</div>
+        <div class="stat-val" id="inactiveUserCount">1</div>
+        <div class="stat-note down">Requires attention</div>
+      </div>
+
+    </section>
+
+    <!-- USER TABLE -->
+    <section class="panel">
+
+      <div class="panel-head">
+        <div>
+          <h3>System Users</h3>
+          <div class="sub">
+            Manage user accounts, roles, and account status
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="addUserBtn">
+          + Add User
+        </button>
+      </div>
+
+      <div class="panel-body">
+
+        <!-- SEARCH AND FILTER -->
+        <div class="user-toolbar">
+
+          <div class="search user-search">
+            <span>⌕</span>
+            <input
+              type="text"
+              id="userSearch"
+              placeholder="Search users..."
+            >
+          </div>
+
+          <select id="roleFilter" class="user-filter">
+            <option value="All">All Roles</option>
+            <option value="Admin">Admin</option>
+            <option value="Cashier">Cashier</option>
+            <option value="Staff">Staff</option>
+          </select>
+
+          <select id="statusFilter" class="user-filter">
+            <option value="All">All Status</option>
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+          </select>
+
+        </div>
+
+        <table id="usersTable">
+
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Role</th>
+              <th>Email</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+
+          <tbody>
+
+            <tr>
+              <td class="cell-strong">L G A S Galappaththi</td>
+              <td><span class="badge navy">Admin</span></td>
+              <td class="cell-mono">galappaththi@bookwise.lk</td>
+              <td><span class="badge green">Active</span></td>
+              <td>
+                <div class="row-actions">
+                  <button class="icon-btn edit-user">Edit</button>
+                  <button class="icon-btn toggle-user">Deactivate</button>
+                </div>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="cell-strong">H M O I N Weerakoon</td>
+              <td><span class="badge gold">Staff</span></td>
+              <td class="cell-mono">weerakoon@bookwise.lk</td>
+              <td><span class="badge green">Active</span></td>
+              <td>
+                <div class="row-actions">
+                  <button class="icon-btn edit-user">Edit</button>
+                  <button class="icon-btn toggle-user">Deactivate</button>
+                </div>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="cell-strong">M A P Perera</td>
+              <td><span class="badge gold">Staff</span></td>
+              <td class="cell-mono">perera.m@bookwise.lk</td>
+              <td><span class="badge green">Active</span></td>
+              <td>
+                <div class="row-actions">
+                  <button class="icon-btn edit-user">Edit</button>
+                  <button class="icon-btn toggle-user">Deactivate</button>
+                </div>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="cell-strong">S D Edirimanna</td>
+              <td><span class="badge navy">Admin</span></td>
+              <td class="cell-mono">edirimanna@bookwise.lk</td>
+              <td><span class="badge grey">Inactive</span></td>
+              <td>
+                <div class="row-actions">
+                  <button class="icon-btn edit-user">Edit</button>
+                  <button class="icon-btn toggle-user">Activate</button>
+                </div>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="cell-strong">Kasun Fernando</td>
+              <td><span class="badge red">Cashier</span></td>
+              <td class="cell-mono">kasun.f@bookwise.lk</td>
+              <td><span class="badge green">Active</span></td>
+              <td>
+                <div class="row-actions">
+                  <button class="icon-btn edit-user">Edit</button>
+                  <button class="icon-btn toggle-user">Deactivate</button>
+                </div>
+              </td>
+            </tr>
+
+          </tbody>
+
+        </table>
+
+      </div>
+    </section>
+
+    <!-- ADD USER FORM -->
+    <section class="panel user-form-panel" id="userFormPanel">
+
+      <div class="panel-head">
+        <div>
+          <h3>Add New User</h3>
+          <div class="sub">
+            Create a new system user and assign an appropriate role
+          </div>
+        </div>
+      </div>
+
+      <div class="form-grid">
+
+        <div class="field">
+          <label>Full Name</label>
+          <input type="text" id="newUserName" placeholder="Enter full name">
+        </div>
+
+        <div class="field">
+          <label>Email</label>
+          <input type="email" id="newUserEmail" placeholder="Enter email">
+        </div>
+
+        <div class="field">
+          <label>Role</label>
+          <select id="newUserRole">
+            <option value="Admin">Admin</option>
+            <option value="Cashier">Cashier</option>
+            <option value="Staff">Staff</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Status</label>
+          <select id="newUserStatus">
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+          </select>
+        </div>
+
+        <div class="field full">
+          <div class="row-actions">
+            <button class="btn btn-primary" id="saveUserBtn">
+              Save User
+            </button>
+
+            <button class="btn btn-ghost" id="cancelUserBtn">
+              Cancel
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
 
   
 </div>
