@@ -39,7 +39,6 @@
 
       <div class="topbar">
         <div>
-          <div class="crumb">Module 02 · Stock</div>
           <h1>Inventory Management</h1>
           <p class="lede">Track books, stationery, and gift items with live stock counts and reorder alerts.</p>
         </div>
@@ -47,18 +46,18 @@
       </div>
 
       <div class="tag-row">
-        <div class="tag active">All Categories</div>
-        <div class="tag">Books</div>
-        <div class="tag">School Books</div>
-        <div class="tag">Stationery</div>
-        <div class="tag">Office Supplies</div>
-        <div class="tag">Art &amp; Craft</div>
+        <button class="tag active" type="button" data-filter="All Categories">All Categories</button>
+        <button class="tag" type="button" data-filter="Books">Books</button>
+        <button class="tag" type="button" data-filter="School Books">School Books</button>
+        <button class="tag" type="button" data-filter="Stationery">Stationery</button>
+        <button class="tag" type="button" data-filter="Office Supplies">Office Supplies</button>
+        <button class="tag" type="button" data-filter="Art &amp; Craft">Art &amp; Craft</button>
       </div>
 
       <div class="panel">
         <div class="panel-head">
-          <div><h3>Product Catalog</h3><div class="sub">142 items · sorted by stock level</div></div>
-          <input class="tag" style="border:none" placeholder="Search by title" />
+          <div><h3>Product Catalog</h3><div class="sub" id="inventoryCount">142 items · sorted by stock level</div></div>
+          <input class="tag" id="supplierSearch" style="border:1px solid var(--line)" placeholder="Search by product name" />
         </div>
         <div class="panel-body flush">
           <table>
