@@ -67,6 +67,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const cancelUserBtn = document.getElementById('cancelUserBtn');
   const saveUserBtn = document.getElementById('saveUserBtn');
 
+  if (document.body.dataset.backendUsers === 'true') return;
+
   function filterUsers() {
 
     if (!usersTable) return;

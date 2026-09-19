@@ -118,6 +118,7 @@ try {
         ? filter_var($segments[1], FILTER_VALIDATE_INT)
         : (isset($_GET['id']) ? filter_var($_GET['id'], FILTER_VALIDATE_INT) : null);
     $method = $_SERVER['REQUEST_METHOD'];
+    $body = requestBody();
 
     if ($resource === '' && $method === 'GET') {
         $database->query('SELECT 1');
@@ -212,6 +213,46 @@ try {
         }
         $database->commit();
         respond(['success' => true, 'message' => 'Sale completed successfully.', 'order_ref' => $orderRef], 201);
+    }
+
+    if ($resource === 'users' && $method === 'GET') {
+        $statement = $database->query(
+            'SELECT id, full_name, email, role, status
+             FROM users
+             ORDER BY full_name'
+        );
+        respond(['success' => true, 'data' => $statement->fetchAll()]);
+    }
+
+    if ($resource === 'users' && $method === 'POST') {
+        $name = trim((string) ($body['full_name'] ?? ''));
+        $email = trim((string) ($body['email'] ?? ''));
+        $role = in_array($body['role'] ?? '', ['Admin', 'Cashier', 'Staff'], true) ? $body['role'] : 'Staff';
+        $status = ($body['status'] ?? 'Active') === 'Inactive' ? 'Inactive' : 'Active';
+        if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            respond(['success' => false, 'message' => 'A valid name and email are required.'], 422);
+        }
+        $statement = $database->prepare(
+            'INSERT INTO users (full_name, email, role, status)
+             VALUES (:full_name, :email, :role, :status)'
+        );
+        $statement->execute([
+            'full_name' => $name,
+            'email' => $email,
+            'role' => $role,
+            'status' => $status,
+        ]);
+        respond(['success' => true, 'message' => 'User added successfully.', 'id' => (int) $database->lastInsertId()], 201);
+    }
+
+    if ($resource === 'users' && $id && $method === 'PATCH') {
+        $status = (($body['status'] ?? '') === 'Active') ? 'Active' : 'Inactive';
+        $statement = $database->prepare('UPDATE users SET status = :status WHERE id = :id');
+        $statement->execute(['status' => $status, 'id' => $id]);
+        if ($statement->rowCount() === 0) {
+            respond(['success' => false, 'message' => 'User was not found or no changes were made.'], 404);
+        }
+        respond(['success' => true, 'message' => 'User status updated successfully.']);
     }
 
     if ($resource === 'products' && $method === 'GET') {

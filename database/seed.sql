@@ -3,6 +3,18 @@
 
 USE bookwise;
 
+INSERT INTO users (full_name, email, role, status)
+VALUES
+    ('L G A S Galappaththi', 'galappaththi@bookwise.lk', 'Admin', 'Active'),
+    ('H M O I N Weerakoon', 'weerakoon@bookwise.lk', 'Staff', 'Active'),
+    ('M A P Perera', 'perera.m@bookwise.lk', 'Staff', 'Active'),
+    ('S D Edirimanna', 'edirimanna@bookwise.lk', 'Admin', 'Inactive'),
+    ('Kasun Fernando', 'kasun.f@bookwise.lk', 'Cashier', 'Active')
+ON DUPLICATE KEY UPDATE
+    full_name = VALUES(full_name),
+    role = VALUES(role),
+    status = VALUES(status);
+
 INSERT INTO categories (name)
 VALUES
     ('Books'),

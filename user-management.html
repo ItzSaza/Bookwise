@@ -7,7 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-backend-users="true">
 <div class="app">
   <!-- SIDEBAR -->
   <aside class="sidebar">
@@ -130,74 +130,7 @@
             </tr>
           </thead>
 
-          <tbody>
-
-            <tr>
-              <td class="cell-strong">L G A S Galappaththi</td>
-              <td><span class="badge navy">Admin</span></td>
-              <td class="cell-mono">galappaththi@bookwise.lk</td>
-              <td><span class="badge green">Active</span></td>
-              <td>
-                <div class="row-actions">
-                  <button class="icon-btn edit-user">Edit</button>
-                  <button class="icon-btn toggle-user">Deactivate</button>
-                </div>
-              </td>
-            </tr>
-
-            <tr>
-              <td class="cell-strong">H M O I N Weerakoon</td>
-              <td><span class="badge gold">Staff</span></td>
-              <td class="cell-mono">weerakoon@bookwise.lk</td>
-              <td><span class="badge green">Active</span></td>
-              <td>
-                <div class="row-actions">
-                  <button class="icon-btn edit-user">Edit</button>
-                  <button class="icon-btn toggle-user">Deactivate</button>
-                </div>
-              </td>
-            </tr>
-
-            <tr>
-              <td class="cell-strong">M A P Perera</td>
-              <td><span class="badge gold">Staff</span></td>
-              <td class="cell-mono">perera.m@bookwise.lk</td>
-              <td><span class="badge green">Active</span></td>
-              <td>
-                <div class="row-actions">
-                  <button class="icon-btn edit-user">Edit</button>
-                  <button class="icon-btn toggle-user">Deactivate</button>
-                </div>
-              </td>
-            </tr>
-
-            <tr>
-              <td class="cell-strong">S D Edirimanna</td>
-              <td><span class="badge navy">Admin</span></td>
-              <td class="cell-mono">edirimanna@bookwise.lk</td>
-              <td><span class="badge grey">Inactive</span></td>
-              <td>
-                <div class="row-actions">
-                  <button class="icon-btn edit-user">Edit</button>
-                  <button class="icon-btn toggle-user">Activate</button>
-                </div>
-              </td>
-            </tr>
-
-            <tr>
-              <td class="cell-strong">Kasun Fernando</td>
-              <td><span class="badge red">Cashier</span></td>
-              <td class="cell-mono">kasun.f@bookwise.lk</td>
-              <td><span class="badge green">Active</span></td>
-              <td>
-                <div class="row-actions">
-                  <button class="icon-btn edit-user">Edit</button>
-                  <button class="icon-btn toggle-user">Deactivate</button>
-                </div>
-              </td>
-            </tr>
-
-          </tbody>
+          <tbody id="usersTableBody"></tbody>
 
         </table>
 
@@ -266,5 +199,92 @@
   
 </div>
 <script src="script.js"></script>
+<script>
+  (async function () {
+    const tableBody = document.getElementById('usersTableBody');
+    const formPanel = document.getElementById('userFormPanel');
+    const users = [];
+    let allUsers = [];
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, character => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+      }[character]));
+    }
+
+    function render() {
+      const query = document.getElementById('userSearch').value.trim().toLowerCase();
+      const role = document.getElementById('roleFilter').value;
+      const status = document.getElementById('statusFilter').value;
+      const visible = allUsers.filter(user =>
+        user.full_name.toLowerCase().includes(query)
+        && (role === 'All' || user.role === role)
+        && (status === 'All' || user.status === status)
+      );
+      tableBody.innerHTML = visible.map(user => `<tr>
+        <td class="cell-strong">${escapeHtml(user.full_name)}</td>
+        <td><span class="badge ${user.role === 'Admin' ? 'navy' : user.role === 'Cashier' ? 'red' : 'gold'}">${user.role}</span></td>
+        <td class="cell-mono">${escapeHtml(user.email)}</td>
+        <td><span class="badge ${user.status === 'Active' ? 'green' : 'grey'}">${user.status}</span></td>
+        <td><button class="icon-btn" data-user-id="${user.id}" data-next-status="${user.status === 'Active' ? 'Inactive' : 'Active'}">${user.status === 'Active' ? 'Deactivate' : 'Activate'}</button></td>
+      </tr>`).join('');
+      document.getElementById('activeUserCount').textContent = allUsers.filter(user => user.status === 'Active').length;
+      document.getElementById('inactiveUserCount').textContent = allUsers.filter(user => user.status === 'Inactive').length;
+      document.getElementById('adminCount').textContent = allUsers.filter(user => user.role === 'Admin' && user.status === 'Active').length;
+      document.getElementById('staffCount').textContent = allUsers.filter(user => user.role === 'Staff' && user.status === 'Active').length;
+    }
+
+    async function loadUsers() {
+      const response = await fetch('api/index.php?resource=users');
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.message);
+      allUsers = result.data;
+      render();
+    }
+
+    document.getElementById('addUserBtn').addEventListener('click', () => {
+      formPanel.classList.add('show');
+      formPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    document.getElementById('cancelUserBtn').addEventListener('click', () => formPanel.classList.remove('show'));
+    ['userSearch', 'roleFilter', 'statusFilter'].forEach(id => document.getElementById(id).addEventListener('input', render));
+    tableBody.addEventListener('click', async event => {
+      const button = event.target.closest('[data-user-id]');
+      if (!button) return;
+      const response = await fetch(`api/index.php?resource=users&id=${button.dataset.userId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: button.dataset.nextStatus })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) return alert(result.message);
+      await loadUsers();
+    });
+    document.getElementById('saveUserBtn').addEventListener('click', async () => {
+      const response = await fetch('api/index.php?resource=users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          full_name: document.getElementById('newUserName').value,
+          email: document.getElementById('newUserEmail').value,
+          role: document.getElementById('newUserRole').value,
+          status: document.getElementById('newUserStatus').value
+        })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) return alert(result.message);
+      formPanel.classList.remove('show');
+      document.getElementById('newUserName').value = '';
+      document.getElementById('newUserEmail').value = '';
+      await loadUsers();
+      alert(result.message);
+    });
+    try {
+      await loadUsers();
+    } catch (error) {
+      tableBody.innerHTML = `<tr><td colspan="5">${error.message}</td></tr>`;
+    }
+  })();
+</script>
 </body>
 </html>

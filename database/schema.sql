@@ -91,3 +91,15 @@ CREATE TABLE IF NOT EXISTS sale_items (
     CONSTRAINT chk_sale_items_quantity CHECK (quantity > 0),
     CONSTRAINT chk_sale_items_unit_price CHECK (unit_price >= 0)
 ) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS users (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    full_name VARCHAR(150) NOT NULL,
+    email VARCHAR(150) NOT NULL UNIQUE,
+    role ENUM('Admin', 'Cashier', 'Staff') NOT NULL DEFAULT 'Staff',
+    status ENUM('Active', 'Inactive') NOT NULL DEFAULT 'Active',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_users_status (status),
+    INDEX idx_users_role (role)
+) ENGINE=InnoDB;
