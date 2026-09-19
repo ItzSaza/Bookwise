@@ -47,6 +47,30 @@ function validateProduct(array $input): array
     ];
 }
 
+function validateSupplier(array $input): array
+{
+    $name = trim((string) ($input['name'] ?? ''));
+    $contactPerson = trim((string) ($input['contact_person'] ?? ''));
+    $phone = trim((string) ($input['phone'] ?? ''));
+    $category = trim((string) ($input['category'] ?? ''));
+
+    if ($name === '' || $contactPerson === '' || $phone === '' || $category === '') {
+        respond(['success' => false, 'message' => 'Name, contact person, phone, and category are required.'], 422);
+    }
+
+    return [
+        'name' => $name,
+        'contact_person' => $contactPerson,
+        'phone' => $phone,
+        'email' => trim((string) ($input['email'] ?? '')) ?: null,
+        'address' => trim((string) ($input['address'] ?? '')) ?: null,
+        'category' => $category,
+        'payment_terms' => trim((string) ($input['payment_terms'] ?? 'Cash on Delivery')) ?: 'Cash on Delivery',
+        'status' => ($input['status'] ?? 'Active') === 'Inactive' ? 'Inactive' : 'Active',
+        'notes' => trim((string) ($input['notes'] ?? '')) ?: null,
+    ];
+}
+
 try {
     $database = getDatabaseConnection();
     $path = trim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '', '/');
@@ -69,8 +93,38 @@ try {
     }
 
     if ($resource === 'suppliers' && $method === 'GET') {
-        $suppliers = $database->query("SELECT id, name FROM suppliers WHERE status = 'Active' ORDER BY name")->fetchAll();
+        $status = ($_GET['status'] ?? 'all') === 'active' ? 'Active' : null;
+        $sql = 'SELECT id, name, contact_person, phone, email, address, category,
+                       payment_terms, status, notes
+                FROM suppliers';
+        if ($status !== null) {
+            $sql .= ' WHERE status = :status';
+        }
+        $sql .= ' ORDER BY name';
+        $statement = $database->prepare($sql);
+        $statement->execute($status === null ? [] : ['status' => $status]);
+        $suppliers = $statement->fetchAll();
         respond(['success' => true, 'data' => $suppliers]);
+    }
+
+    if ($resource === 'suppliers' && $method === 'POST') {
+        $supplier = validateSupplier(requestBody());
+        $statement = $database->prepare(
+            'INSERT INTO suppliers
+                (name, contact_person, phone, email, address, category, payment_terms, status, notes)
+             VALUES (:name, :contact_person, :phone, :email, :address, :category, :payment_terms, :status, :notes)'
+        );
+        $statement->execute($supplier);
+        respond(['success' => true, 'message' => 'Supplier added successfully.', 'id' => (int) $database->lastInsertId()], 201);
+    }
+
+    if ($resource === 'suppliers' && $id && $method === 'DELETE') {
+        $statement = $database->prepare("UPDATE suppliers SET status = 'Inactive' WHERE id = :id");
+        $statement->execute(['id' => $id]);
+        if ($statement->rowCount() === 0) {
+            respond(['success' => false, 'message' => 'Supplier was not found.'], 404);
+        }
+        respond(['success' => true, 'message' => 'Supplier deactivated successfully.']);
     }
 
     if ($resource === 'products' && $method === 'GET') {

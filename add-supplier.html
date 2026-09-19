@@ -50,30 +50,30 @@
         <div class="panel-head">
           <div><h3>Supplier Details</h3><div class="sub">Fill in the supplier's business and contact information</div></div>
         </div>
-        <div class="form-grid">
+        <form class="form-grid" id="supplierForm">
           <div class="field full">
             <label>Supplier / Business Name</label>
-            <input placeholder="e.g. Vijitha Yapa Distributors">
+            <input id="supplierName" required placeholder="e.g. Vijitha Yapa Distributors">
           </div>
 
           <div class="field">
             <label>Contact Person</label>
-            <input placeholder="e.g. K. Ranasinghe">
+            <input id="contactPerson" required placeholder="e.g. K. Ranasinghe">
           </div>
 
           <div class="field">
             <label>Phone Number</label>
-            <input placeholder="e.g. 077 221 5540">
+            <input id="phone" required placeholder="e.g. 077 221 5540">
           </div>
 
           <div class="field">
             <label>Email Address</label>
-            <input type="email" placeholder="supplier@example.com">
+            <input id="email" type="email" placeholder="supplier@example.com">
           </div>
 
           <div class="field">
             <label>Product Category Supplied</label>
-            <select>
+            <select id="category">
               <option>Books</option>
               <option>School Books</option>
               <option>Stationery</option>
@@ -85,12 +85,12 @@
 
           <div class="field full">
             <label>Address</label>
-            <input placeholder="e.g. 45 Galle Road, Colombo 03">
+            <input id="address" placeholder="e.g. 45 Galle Road, Colombo 03">
           </div>
 
           <div class="field">
             <label>Payment Terms</label>
-            <select>
+            <select id="paymentTerms">
               <option>Cash on Delivery</option>
               <option>7 Days Credit</option>
               <option>14 Days Credit</option>
@@ -100,7 +100,7 @@
 
           <div class="field">
             <label>Status</label>
-            <select>
+            <select id="status">
               <option>Active</option>
               <option>Inactive</option>
             </select>
@@ -108,13 +108,12 @@
 
           <div class="field full">
             <label>Notes</label>
-            <input placeholder="Any additional notes about this supplier">
-          </div>
+            <input id="notes" placeholder="Any additional notes about this supplier">
+          </form>
         </div>
 
         <div style="padding:0 22px 22px; display:flex; gap:10px;">
-          <!-- These buttons route back to the suppliers page for prototype flow -->
-          <button class="btn btn-primary" onclick="window.location.href='suppliers.html'">Save Supplier</button>
+          <button class="btn btn-primary" type="submit" form="supplierForm">Save Supplier</button>
           <button class="btn btn-ghost" onclick="window.location.href='suppliers.html'">Cancel</button>
         </div>
       </div>
@@ -123,5 +122,33 @@
   </main>
 </div>
 <script src="script.js"></script>
+<script>
+  document.getElementById('supplierForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const value = id => document.getElementById(id).value;
+    const response = await fetch('api/index.php?resource=suppliers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: value('supplierName'),
+        contact_person: value('contactPerson'),
+        phone: value('phone'),
+        email: value('email'),
+        category: value('category'),
+        address: value('address'),
+        payment_terms: value('paymentTerms'),
+        status: value('status'),
+        notes: value('notes')
+      })
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+      alert(result.message);
+      return;
+    }
+    alert(result.message);
+    window.location.href = 'suppliers.html';
+  });
+</script>
 </body>
 </html>
