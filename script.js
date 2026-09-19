@@ -432,6 +432,14 @@ document.addEventListener("DOMContentLoaded", () => {
     {ref:"ORD-2287", customer:"K. Silva", items:2, payment:"Cash", amount:5200, status:"Refunded", date:"19 Sep 2026, 13:19"}
   ];
 
+  async function loadSavedOrders() {
+    const response = await fetch("api/index.php?resource=sales");
+    const result = await response.json();
+    if (response.ok && result.success && result.data.length) {
+      orders = result.data;
+    }
+  }
+
   const $ = id => document.getElementById(id);
 
   const money = value => {
@@ -593,7 +601,7 @@ document.addEventListener("DOMContentLoaded", () => {
     toast(value ? `${value}% discount applied.` : "Discount removed.");
   }
 
-  function completeSale() {
+  async function completeSale() {
     if (!cart.length) {
       toast("Add at least one item before completing the sale.");
       return;
@@ -618,7 +626,33 @@ document.addEventListener("DOMContentLoaded", () => {
       })
     };
 
-    orders.unshift(newOrder);
+    try {
+      const response = await fetch("api/index.php?resource=sales", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          payment_method: selectedPayment,
+          subtotal,
+          discount_amount: discount,
+          tax_amount: tax,
+          items: cart.map(item => ({
+            name: item.title,
+            quantity: item.qty,
+            unit_price: item.price
+          }))
+        })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        toast(result.message || "Could not save the sale.");
+        return;
+      }
+      newOrder.ref = result.order_ref;
+      orders.unshift(newOrder);
+    } catch (error) {
+      toast("Could not connect to the sales database.");
+      return;
+    }
 
     // Reduce demo stock.
     cart.forEach(item => {
@@ -834,6 +868,8 @@ document.addEventListener("DOMContentLoaded", () => {
     printWindow.focus();
     printWindow.print();
   });
+
+  loadSavedOrders().then(renderOrders).catch(() => renderOrders());
 
   // Initial render.
   renderProducts();

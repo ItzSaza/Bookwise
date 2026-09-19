@@ -71,6 +71,43 @@ function validateSupplier(array $input): array
     ];
 }
 
+function validateSale(array $input): array
+{
+    $items = $input['items'] ?? [];
+    $payment = ($input['payment_method'] ?? '') === 'Card' ? 'Card' : 'Cash';
+    if (!is_array($items) || count($items) === 0) {
+        respond(['success' => false, 'message' => 'At least one sale item is required.'], 422);
+    }
+
+    $cleanItems = [];
+    foreach ($items as $item) {
+        $name = trim((string) ($item['name'] ?? ''));
+        $quantity = filter_var($item['quantity'] ?? null, FILTER_VALIDATE_INT);
+        $unitPrice = filter_var($item['unit_price'] ?? null, FILTER_VALIDATE_FLOAT);
+        if ($name === '' || $quantity === false || $quantity < 1 || $unitPrice === false || $unitPrice < 0) {
+            respond(['success' => false, 'message' => 'Sale items contain invalid values.'], 422);
+        }
+        $cleanItems[] = [
+            'name' => $name,
+            'quantity' => $quantity,
+            'unit_price' => $unitPrice,
+            'line_total' => $quantity * $unitPrice,
+        ];
+    }
+
+    $subtotal = array_sum(array_column($cleanItems, 'line_total'));
+    $discount = max(0, (float) ($input['discount_amount'] ?? 0));
+    $tax = max(0, (float) ($input['tax_amount'] ?? 0));
+    return [
+        'items' => $cleanItems,
+        'payment_method' => $payment,
+        'subtotal' => $subtotal,
+        'discount_amount' => $discount,
+        'tax_amount' => $tax,
+        'total_amount' => max(0, $subtotal - $discount + $tax),
+    ];
+}
+
 try {
     $database = getDatabaseConnection();
     $path = trim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '', '/');
@@ -125,6 +162,56 @@ try {
             respond(['success' => false, 'message' => 'Supplier was not found.'], 404);
         }
         respond(['success' => true, 'message' => 'Supplier deactivated successfully.']);
+    }
+
+    if ($resource === 'sales' && $method === 'GET') {
+        $statement = $database->query(
+            'SELECT s.order_ref AS ref, s.customer_name AS customer, COUNT(si.id) AS items,
+                    s.payment_method AS payment, s.total_amount AS amount, s.status,
+                    DATE_FORMAT(s.created_at, "%d %b %Y, %H:%i") AS date
+             FROM sales s
+             LEFT JOIN sale_items si ON si.sale_id = s.id
+             GROUP BY s.id
+             ORDER BY s.created_at DESC
+             LIMIT 50'
+        );
+        respond(['success' => true, 'data' => $statement->fetchAll()]);
+    }
+
+    if ($resource === 'sales' && $method === 'POST') {
+        $sale = validateSale(requestBody());
+        $database->beginTransaction();
+        $orderRef = 'ORD-' . str_pad((string) (time() % 100000), 5, '0', STR_PAD_LEFT);
+        $saleStatement = $database->prepare(
+            'INSERT INTO sales
+                (order_ref, customer_name, payment_method, subtotal, discount_amount, tax_amount, total_amount)
+             VALUES (:order_ref, :customer_name, :payment_method, :subtotal, :discount_amount, :tax_amount, :total_amount)'
+        );
+        $saleStatement->execute([
+            'order_ref' => $orderRef,
+            'customer_name' => 'Walk-in Customer',
+            'payment_method' => $sale['payment_method'],
+            'subtotal' => $sale['subtotal'],
+            'discount_amount' => $sale['discount_amount'],
+            'tax_amount' => $sale['tax_amount'],
+            'total_amount' => $sale['total_amount'],
+        ]);
+        $saleId = (int) $database->lastInsertId();
+        $itemStatement = $database->prepare(
+            'INSERT INTO sale_items (sale_id, product_name, quantity, unit_price, line_total)
+             VALUES (:sale_id, :product_name, :quantity, :unit_price, :line_total)'
+        );
+        foreach ($sale['items'] as $item) {
+            $itemStatement->execute([
+                'sale_id' => $saleId,
+                'product_name' => $item['name'],
+                'quantity' => $item['quantity'],
+                'unit_price' => $item['unit_price'],
+                'line_total' => $item['line_total'],
+            ]);
+        }
+        $database->commit();
+        respond(['success' => true, 'message' => 'Sale completed successfully.', 'order_ref' => $orderRef], 201);
     }
 
     if ($resource === 'products' && $method === 'GET') {
