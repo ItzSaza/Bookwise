@@ -15,6 +15,19 @@ ON DUPLICATE KEY UPDATE
     role = VALUES(role),
     status = VALUES(status);
 
+INSERT INTO employees (name, role, phone, department, status)
+VALUES
+    ('H M T N Perera', 'Store Admin', '077 221 5540', 'Management', 'active'),
+    ('W A D Silva', 'Cashier', '071 449 8823', 'Orders & POS', 'active'),
+    ('K G Ranasinghe', 'Inventory Clerk', '070 336 1290', 'Inventory', 'leave'),
+    ('N Fernando', 'Accounts Assistant', '076 902 4471', 'Financials', 'inactive')
+ON DUPLICATE KEY UPDATE
+    name = VALUES(name),
+    role = VALUES(role),
+    phone = VALUES(phone),
+    department = VALUES(department),
+    status = VALUES(status);
+
 INSERT INTO categories (name)
 VALUES
     ('Books'),

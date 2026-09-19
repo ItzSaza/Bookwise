@@ -103,3 +103,16 @@ CREATE TABLE IF NOT EXISTS users (
     INDEX idx_users_status (status),
     INDEX idx_users_role (role)
 ) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS employees (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(150) NOT NULL,
+    role VARCHAR(100) NOT NULL,
+    phone VARCHAR(30) NOT NULL,
+    department VARCHAR(100) NOT NULL,
+    status ENUM('active', 'leave', 'inactive') NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_employees_status (status),
+    INDEX idx_employees_department (department)
+) ENGINE=InnoDB;

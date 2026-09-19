@@ -764,14 +764,9 @@
 
 <script>
 (function(){
-  var employees = [
-    { id: 1, name: "H M T N Perera", role: "Store Admin", phone: "077 221 5540", department: "Management", status: "active" },
-    { id: 2, name: "W A D Silva", role: "Cashier", phone: "071 449 8823", department: "Orders & POS", status: "active" },
-    { id: 3, name: "K G Ranasinghe", role: "Inventory Clerk", phone: "070 336 1290", department: "Inventory", status: "leave" },
-    { id: 4, name: "N Fernando", role: "Accounts Assistant", phone: "076 902 4471", department: "Financials", status: "inactive" }
-  ];
+  var employees = [];
   var shifts = [];
-  var nextEmpId = 5;
+  var nextEmpId = 1;
   var nextShiftId = 1;
   var activeFilter = "all";
   var searchTerm = "";
@@ -803,6 +798,17 @@
     toastEl.classList.add("show");
     if (toastTimer) clearTimeout(toastTimer);
     toastTimer = setTimeout(function(){ toastEl.classList.remove("show"); }, 2200);
+  }
+
+  function loadEmployees(){
+    return fetch("api/index.php?resource=employees")
+      .then(function(response){ return response.json().then(function(result){ return { response: response, result: result }; }); })
+      .then(function(data){
+        if (!data.response.ok || !data.result.success) throw new Error(data.result.message || "Could not load employees.");
+        employees = data.result.data;
+        nextEmpId = employees.reduce(function(max, employee){ return Math.max(max, Number(employee.id)); }, 0) + 1;
+        render();
+      });
   }
 
   function initials(name){
@@ -1011,27 +1017,32 @@
     var status = document.getElementById("f-status").value;
     if (!name || !role || !phone) return;
 
-    if (editingId === null){
-      employees.push({ id: nextEmpId++, name: name, role: role, phone: phone, department: department, status: status });
-      showToast("Employee added");
-    } else {
-      var emp = employees.find(function(e){ return e.id === editingId; });
-      if (emp){
-        emp.name = name; emp.role = role; emp.phone = phone; emp.department = department; emp.status = status;
-        showToast("Employee updated");
-      }
-    }
-    closeEmployeeModal();
-    render();
+    var payload = { name: name, role: role, phone: phone, department: department, status: status };
+    var url = "api/index.php?resource=employees" + (editingId === null ? "" : "&id=" + editingId);
+    fetch(url, {
+      method: editingId === null ? "POST" : "PUT",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(payload)
+    }).then(function(response){ return response.json().then(function(result){ return { response: response, result: result }; }); })
+      .then(function(data){
+        if (!data.response.ok || !data.result.success) throw new Error(data.result.message || "Could not save employee.");
+        closeEmployeeModal();
+        showToast(data.result.message);
+        return loadEmployees();
+      }).catch(function(error){ showToast(error.message); });
   });
 
   deleteBtn.addEventListener("click", function(){
     if (editingId === null) return;
-    employees = employees.filter(function(e){ return e.id !== editingId; });
-    shifts = shifts.filter(function(s){ return s.employeeId !== editingId; });
-    showToast("Employee removed");
-    closeEmployeeModal();
-    render();
+    fetch("api/index.php?resource=employees&id=" + editingId, { method: "DELETE" })
+      .then(function(response){ return response.json().then(function(result){ return { response: response, result: result }; }); })
+      .then(function(data){
+        if (!data.response.ok || !data.result.success) throw new Error(data.result.message || "Could not deactivate employee.");
+        shifts = shifts.filter(function(s){ return s.employeeId !== editingId; });
+        showToast(data.result.message);
+        closeEmployeeModal();
+        return loadEmployees();
+      }).catch(function(error){ showToast(error.message); });
   });
 
   // Shift modal
@@ -1072,7 +1083,10 @@
     }
   });
 
-  render();
+  loadEmployees().catch(function(error){
+    showToast(error.message);
+    render();
+  });
 })();
 </script>
 

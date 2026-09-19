@@ -255,6 +255,65 @@ try {
         respond(['success' => true, 'message' => 'User status updated successfully.']);
     }
 
+    if ($resource === 'employees' && $method === 'GET') {
+        $statement = $database->query(
+            'SELECT id, name, role, phone, department, status
+             FROM employees
+             ORDER BY name'
+        );
+        respond(['success' => true, 'data' => $statement->fetchAll()]);
+    }
+
+    if ($resource === 'employees' && $method === 'POST') {
+        $employee = [
+            'name' => trim((string) ($body['name'] ?? '')),
+            'role' => trim((string) ($body['role'] ?? '')),
+            'phone' => trim((string) ($body['phone'] ?? '')),
+            'department' => trim((string) ($body['department'] ?? '')),
+            'status' => in_array($body['status'] ?? '', ['active', 'leave', 'inactive'], true)
+                ? $body['status']
+                : 'active',
+        ];
+        if ($employee['name'] === '' || $employee['role'] === '' || $employee['phone'] === '' || $employee['department'] === '') {
+            respond(['success' => false, 'message' => 'Name, role, phone, and department are required.'], 422);
+        }
+        $statement = $database->prepare(
+            'INSERT INTO employees (name, role, phone, department, status)
+             VALUES (:name, :role, :phone, :department, :status)'
+        );
+        $statement->execute($employee);
+        respond(['success' => true, 'message' => 'Employee added successfully.', 'id' => (int) $database->lastInsertId()], 201);
+    }
+
+    if ($resource === 'employees' && $id && $method === 'PUT') {
+        $employee = [
+            'id' => $id,
+            'name' => trim((string) ($body['name'] ?? '')),
+            'role' => trim((string) ($body['role'] ?? '')),
+            'phone' => trim((string) ($body['phone'] ?? '')),
+            'department' => trim((string) ($body['department'] ?? '')),
+            'status' => in_array($body['status'] ?? '', ['active', 'leave', 'inactive'], true)
+                ? $body['status']
+                : 'active',
+        ];
+        if ($employee['name'] === '' || $employee['role'] === '' || $employee['phone'] === '' || $employee['department'] === '') {
+            respond(['success' => false, 'message' => 'Name, role, phone, and department are required.'], 422);
+        }
+        $statement = $database->prepare(
+            'UPDATE employees
+             SET name = :name, role = :role, phone = :phone, department = :department, status = :status
+             WHERE id = :id'
+        );
+        $statement->execute($employee);
+        respond(['success' => true, 'message' => 'Employee updated successfully.']);
+    }
+
+    if ($resource === 'employees' && $id && $method === 'DELETE') {
+        $statement = $database->prepare("UPDATE employees SET status = 'inactive' WHERE id = :id");
+        $statement->execute(['id' => $id]);
+        respond(['success' => true, 'message' => 'Employee deactivated successfully.']);
+    }
+
     if ($resource === 'products' && $method === 'GET') {
         $search = trim((string) ($_GET['search'] ?? ''));
         $category = trim((string) ($_GET['category'] ?? ''));
