@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bookwise — Employee Management</title>
+<link rel="stylesheet" href="style.css">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
 
@@ -476,6 +477,93 @@
         min-width: 770px;
     }
 }
+
+  /* Align the staff module with the shared Bookwise console theme. */
+  :root{
+    --navy:#1B2A4A;
+    --navy-deep:#12203A;
+    --cream:#F7F3EA;
+    --paper:#FFFFFF;
+    --burgundy:#7A2E2E;
+    --burgundy-deep:#5E2222;
+    --sage:#4F6F52;
+    --gold:#C9A227;
+    --ink:#232323;
+    --muted:#6b6459;
+    --line:#E4DDCB;
+    --radius:10px;
+  }
+  body{font-family:'Inter',sans-serif;background:var(--cream);color:var(--ink);display:block;min-height:100vh;}
+  .sidebar{width:250px;background:var(--navy);padding:28px 18px;position:fixed;top:0;bottom:0;left:0;height:100vh;}
+  .brand{padding:0 8px;margin-bottom:6px;}
+  .brand-mark{background:var(--gold);color:var(--navy-deep);font-family:'Fraunces',serif;}
+  .brand-text h1{font-family:'Fraunces',serif;}
+  .brand-text p{color:#9aa7c2;}
+  nav{margin-top:0;padding:0;gap:3px;}
+  .nav-item{color:#c7cfe3;font-size:14px;margin-bottom:0;}
+  .nav-item .num{color:#6f7ea3;font-family:'JetBrains Mono',monospace;}
+  .nav-item:hover{background:rgba(255,255,255,.06);color:#fff;}
+  .nav-item.active{background:var(--burgundy);color:#fff;}
+  .nav-item.active .num{color:#ffd7d7;}
+  .sidebar-footer{padding:16px 0 0;border-top-color:rgba(255,255,255,.1);}
+  .avatar{background:var(--gold);color:var(--navy-deep);}
+  .sidebar-footer .who p:last-child{color:#6f7ea3;}
+  main{margin-left:250px;max-width:1180px;padding:32px 40px 60px;overflow-x:visible;}
+  .top-row h2,.section-label,.panel-head h3,.modal h3{font-family:'Fraunces',serif;color:var(--navy-deep);}
+  .top-row h2{font-size:32px;color:var(--navy-deep);}
+  .top-row .subtitle,.panel-head p{color:var(--muted);}
+  .btn-filled{background:var(--burgundy);}
+  .btn-filled:hover{background:var(--burgundy-deep);}
+  .btn-outline{background:transparent;border-color:var(--line);color:var(--navy);}
+  .btn-outline:hover{background:var(--paper);border-color:var(--navy);}
+  .stat-card,.panel,.shift-card,.shift-empty{background:var(--paper);border-color:var(--line);}
+  .stat-card{border-radius:var(--radius);}
+  .stat-card .label,.panel-head p,.field label{color:var(--muted);}
+  .stat-card .value{font-family:'Fraunces',serif;color:var(--navy-deep);}
+  .stat-card .foot{color:var(--muted);}
+  .tab{background:var(--paper);border-color:var(--line);color:var(--muted);}
+  .tab.active{background:var(--navy);border-color:var(--navy);}
+  table th{color:var(--muted);border-color:var(--line);}
+  table td{border-color:#f0ebdd;}
+  .edit-btn{background:var(--paper);border-color:var(--line);color:var(--muted);}
+  .edit-btn:hover{border-color:var(--navy);color:var(--navy);}
+  .field input,.field select,.search-box{border-color:var(--line);background:#fcfaf4;color:var(--ink);}
+  .status.active{background:#e8f0e6;color:var(--sage);}
+  .status.leave{background:#fbf1d6;color:#9a7b12;}
+  .status.inactive{background:#efebe1;color:var(--muted);}
+  .modal-overlay{background:rgba(18,32,58,.48);}
+  .modal{background:var(--paper);border-color:var(--line);}
+  @media(max-width:900px){
+    body{min-width:0;}
+    .sidebar{position:relative;width:100%;height:auto;}
+    main{margin-left:0;padding:24px 18px 44px;}
+    .stats{grid-template-columns:repeat(2,1fr);}
+  }
+  @media(max-width:600px){
+    .top-row{flex-direction:column;align-items:flex-start;}
+    .stats{grid-template-columns:1fr;}
+  }
+  /* Final shared-theme overrides for the legacy staff markup. */
+  body{background:var(--cream)!important;color:var(--ink)!important;font-family:'Inter',sans-serif!important;display:block!important;min-width:0!important;}
+  .sidebar{background:var(--navy)!important;width:250px!important;position:fixed!important;left:0!important;top:0!important;bottom:0!important;height:100vh!important;padding:28px 18px!important;}
+  .brand-mark{background:var(--gold)!important;color:var(--navy-deep)!important;}
+  .nav-item{display:flex!important;width:100%!important;background:transparent!important;color:#c7cfe3!important;text-decoration:none!important;}
+  .nav-item:hover{background:rgba(255,255,255,.06)!important;color:#fff!important;}
+  .nav-item.active{background:var(--burgundy)!important;color:#fff!important;}
+  .nav-item.active .num{color:#ffd7d7!important;}
+  main{display:block!important;margin-left:250px!important;max-width:1180px!important;min-width:0!important;padding:32px 40px 60px!important;background:var(--cream)!important;}
+  .top-row h2{font-family:'Fraunces',serif!important;color:var(--navy-deep)!important;}
+  .btn-filled{background:var(--burgundy)!important;}
+  .btn-outline{background:transparent!important;color:var(--navy)!important;border-color:var(--line)!important;}
+  .stat-card,.panel,.shift-card,.shift-empty,.modal{background:var(--paper)!important;border-color:var(--line)!important;}
+  .stat-card .value,.panel-head h3,.section-label,.modal h3{font-family:'Fraunces',serif!important;color:var(--navy-deep)!important;}
+  .tab{background:var(--paper)!important;border-color:var(--line)!important;color:var(--muted)!important;}
+  .tab.active{background:var(--navy)!important;border-color:var(--navy)!important;color:#fff!important;}
+  .field input,.field select,.search-box{background:#fcfaf4!important;border-color:var(--line)!important;}
+  @media(max-width:900px){
+    .sidebar{position:relative!important;width:100%!important;height:auto!important;}
+    main{margin-left:0!important;padding:24px 18px 44px!important;}
+  }
 </style>
 </head>
 <body>
@@ -490,13 +578,13 @@
     </div>
 
     <nav>
-      <a href="#" class="nav-item"><span class="num">01</span>User Management</a>
-      <a href="#" class="nav-item"><span class="num">02</span>Inventory</a>
-      <a href="#" class="nav-item"><span class="num">03</span> Suppliers</a>
-      <a href="#" class="nav-item"><span class="num">04</span>Orders & POS</a>
-      <a href="#" class="nav-item"><span class="num">05</span>Financials</a>
-      <a href="#" class="nav-item"><span class="num">06</span>Services & Staff</a>
-      <a href="#" class="nav-item active"><span class="num">07</span>Employee</a>
+      <a href="user-management.html" class="nav-item"><span class="num">01</span>User Management</a>
+      <a href="inventory.html" class="nav-item"><span class="num">02</span>Inventory</a>
+      <a href="suppliers.html" class="nav-item"><span class="num">03</span>Suppliers</a>
+      <a href="orders-pos.html" class="nav-item"><span class="num">04</span>Orders &amp; POS</a>
+      <a href="financials.html" class="nav-item"><span class="num">05</span>Financials</a>
+      <a href="services-staff.html" class="nav-item active"><span class="num">06</span>Services &amp; Staff</a>
+      <a href="index.html" class="nav-item"><span class="num">00</span>Overview</a>
     </nav>
 
     <div class="sidebar-footer">

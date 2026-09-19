@@ -61,15 +61,7 @@
         <div class="panel-body flush">
           <table>
             <thead><tr><th>Item</th><th>Category</th><th>Price</th><th>In Stock</th><th>Reorder Level</th><th>Status</th><th></th></tr></thead>
-            <tbody>
-              <tr><td class="cell-strong">Atomic Habits</td><td>Books</td><td>Rs. 2,350</td><td>34</td><td>10</td><td><span class="badge green">Healthy</span></td><td><button class="icon-btn">Edit</button></td></tr>
-              <tr><td class="cell-strong">Rich Dad Poor Dad</td><td>Books</td><td>Rs. 1,950</td><td>28</td><td>10</td><td><span class="badge green">Healthy</span></td><td><button class="icon-btn">Edit</button></td></tr>
-              <tr><td class="cell-strong">Grade 10 Science Textbook</td><td>School Books</td><td>Rs. 890</td><td>6</td><td>15</td><td><span class="badge red">Low Stock</span></td><td><button class="icon-btn">Edit</button></td></tr>
-              <tr><td class="cell-strong">Premium Gel Pens (10pcs)</td><td>Stationery</td><td>Rs. 850</td><td>52</td><td>20</td><td><span class="badge green">Healthy</span></td><td><button class="icon-btn">Edit</button></td></tr>
-              <tr><td class="cell-strong">A4 Spiral Notebook</td><td>Stationery</td><td>Rs. 300</td><td>9</td><td>25</td><td><span class="badge red">Low Stock</span></td><td><button class="icon-btn">Edit</button></td></tr>
-              <tr><td class="cell-strong">Office Stapler Set</td><td>Office Supplies</td><td>Rs. 1,200</td><td>17</td><td>8</td><td><span class="badge green">Healthy</span></td><td><button class="icon-btn">Edit</button></td></tr>
-              <tr><td class="cell-strong">Watercolour Paint Set</td><td>Art &amp; Craft</td><td>Rs. 2,100</td><td>11</td><td>12</td><td><span class="badge gold">Watch</span></td><td><button class="icon-btn">Edit</button></td></tr>
-            </tbody>
+            <tbody id="productTableBody"></tbody>
           </table>
         </div>
       </div>
@@ -77,5 +69,76 @@
   </main>
 </div>
 <script src="script.js"></script>
+<script>
+  (async function () {
+    const tableBody = document.getElementById('productTableBody');
+    const countLabel = document.getElementById('inventoryCount');
+    const searchInput = document.getElementById('supplierSearch');
+    let activeCategory = '';
+    let products = [];
+
+    function money(value) {
+      return 'Rs. ' + Number(value).toLocaleString('en-LK', { maximumFractionDigits: 0 });
+    }
+
+    function render() {
+      const query = searchInput.value.trim().toLowerCase();
+      const visible = products.filter(product => {
+        return (!activeCategory || product.category_name === activeCategory)
+          && product.name.toLowerCase().includes(query);
+      });
+      tableBody.innerHTML = visible.map(product => {
+        const low = Number(product.stock_quantity) <= Number(product.reorder_level);
+        return `<tr>
+          <td class="cell-strong">${escapeHtml(product.name)}</td>
+          <td>${escapeHtml(product.category_name)}</td>
+          <td>${money(product.unit_price)}</td>
+          <td>${product.stock_quantity}</td>
+          <td>${product.reorder_level}</td>
+          <td><span class="badge ${low ? 'red' : 'green'}">${low ? 'Low Stock' : 'Healthy'}</span></td>
+          <td><button class="icon-btn" data-delete-id="${product.id}">Delete</button></td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="7">No products match this view.</td></tr>';
+      countLabel.textContent = `${visible.length} items · loaded from database`;
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, character => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+      }[character]));
+    }
+
+    async function loadProducts() {
+      const response = await fetch('api/index.php?resource=products');
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.message);
+      products = result.data;
+      render();
+    }
+
+    document.querySelectorAll('[data-filter]').forEach(button => {
+      button.addEventListener('click', () => {
+        activeCategory = button.dataset.filter === 'All Categories' ? '' : button.dataset.filter;
+        document.querySelectorAll('[data-filter]').forEach(item => item.classList.toggle('active', item === button));
+        render();
+      });
+    });
+    searchInput.addEventListener('input', render);
+    tableBody.addEventListener('click', async event => {
+      const button = event.target.closest('[data-delete-id]');
+      if (!button || !confirm('Delete this product?')) return;
+      const response = await fetch(`api/index.php?resource=products&id=${button.dataset.deleteId}`, { method: 'DELETE' });
+      const result = await response.json();
+      if (!response.ok || !result.success) return alert(result.message);
+      await loadProducts();
+    });
+
+    try {
+      await loadProducts();
+    } catch (error) {
+      tableBody.innerHTML = `<tr><td colspan="7">${error.message}</td></tr>`;
+    }
+  })();
+</script>
 </body>
 </html>

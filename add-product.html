@@ -50,15 +50,15 @@
         <div class="panel-head">
           <div><h3>Product Details</h3><div class="sub">Fill in the item specifications</div></div>
         </div>
-        <div class="form-grid">
+        <form class="form-grid" id="productForm">
           <div class="field full">
             <label>Product Title / Name</label>
-            <input placeholder="e.g. Oxford English Dictionary">
+            <input id="productName" required placeholder="e.g. Oxford English Dictionary">
           </div>
           
           <div class="field">
             <label>Category</label>
-            <select>
+            <select id="categoryId" required>
               <option>Books</option>
               <option>School Books</option>
               <option>Stationery</option>
@@ -69,17 +69,17 @@
           
           <div class="field">
             <label>ISBN / Barcode</label>
-            <input placeholder="Scan or type barcode">
+            <input id="barcode" placeholder="Optional demo value">
           </div>
           
           <div class="field">
             <label>Unit Price (Rs.)</label>
-            <input type="number" placeholder="0.00">
+            <input id="unitPrice" type="number" min="0" step="0.01" required placeholder="0.00">
           </div>
           
           <div class="field">
             <label>Primary Supplier</label>
-            <select>
+            <select id="supplierId">
               <option>Vijitha Yapa Distributors</option>
               <option>Wasana Stationery Hub</option>
               <option>Colombo Art Supplies</option>
@@ -89,18 +89,17 @@
 
           <div class="field">
             <label>Initial Stock Quantity</label>
-            <input type="number" placeholder="e.g. 50">
+            <input id="stockQuantity" type="number" min="0" required placeholder="e.g. 50">
           </div>
           
           <div class="field">
             <label>Low Stock Reorder Level</label>
-            <input type="number" placeholder="e.g. 10">
+            <input id="reorderLevel" type="number" min="0" required placeholder="e.g. 10">
           </div>
-        </div>
+        </form>
         
         <div style="padding:0 22px 22px; display:flex; gap:10px;">
-          <!-- These buttons route back to the inventory page for prototype flow -->
-          <button class="btn btn-primary" onclick="window.location.href='inventory.html'">Save Product</button>
+          <button class="btn btn-primary" type="submit" form="productForm">Save Product</button>
           <button class="btn btn-ghost" onclick="window.location.href='inventory.html'">Cancel</button>
         </div>
       </div>
@@ -109,5 +108,56 @@
   </main>
 </div>
 <script src="script.js"></script>
+<script>
+  (async function () {
+    const form = document.getElementById('productForm');
+    const categorySelect = document.getElementById('categoryId');
+    const supplierSelect = document.getElementById('supplierId');
+
+    function fillSelect(select, items, label) {
+      select.innerHTML = `<option value="">Select ${label}</option>` + items.map(item =>
+        `<option value="${item.id}">${item.name}</option>`
+      ).join('');
+    }
+
+    try {
+      const [categoriesResponse, suppliersResponse] = await Promise.all([
+        fetch('api/index.php?resource=categories'),
+        fetch('api/index.php?resource=suppliers')
+      ]);
+      const categories = await categoriesResponse.json();
+      const suppliers = await suppliersResponse.json();
+      if (!categories.success || !suppliers.success) throw new Error('Could not load form options.');
+      fillSelect(categorySelect, categories.data, 'category');
+      fillSelect(supplierSelect, suppliers.data, 'supplier');
+    } catch (error) {
+      alert(error.message);
+    }
+
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const response = await fetch('api/index.php?resource=products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: document.getElementById('productName').value,
+          category_id: categorySelect.value,
+          isbn_barcode: document.getElementById('barcode').value,
+          unit_price: document.getElementById('unitPrice').value,
+          primary_supplier_id: supplierSelect.value || null,
+          stock_quantity: document.getElementById('stockQuantity').value,
+          reorder_level: document.getElementById('reorderLevel').value
+        })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        alert(result.message);
+        return;
+      }
+      alert(result.message);
+      window.location.href = 'inventory.html';
+    });
+  })();
+</script>
 </body>
 </html>
