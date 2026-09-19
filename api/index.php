@@ -314,6 +314,57 @@ try {
         respond(['success' => true, 'message' => 'Employee deactivated successfully.']);
     }
 
+    if ($resource === 'financials' && $method === 'GET') {
+        $salesTotal = (float) $database->query(
+            "SELECT COALESCE(SUM(total_amount), 0) FROM sales
+             WHERE created_at >= DATE_FORMAT(CURRENT_DATE, '%Y-%m-01') AND status = 'Paid'"
+        )->fetchColumn();
+        $expenseTotal = (float) $database->query(
+            "SELECT COALESCE(SUM(amount), 0) FROM expenses
+             WHERE expense_date >= DATE_FORMAT(CURRENT_DATE, '%Y-%m-01')"
+        )->fetchColumn();
+        $transactions = $database->query(
+            "SELECT order_ref AS ref, 'Sale' AS type, total_amount AS amount, created_at AS transaction_date
+             FROM sales WHERE status = 'Paid'
+             UNION ALL
+             SELECT expense_ref, expense_type, -amount, expense_date
+             FROM expenses
+             ORDER BY transaction_date DESC LIMIT 20"
+        )->fetchAll();
+        respond([
+            'success' => true,
+            'data' => [
+                'revenue' => $salesTotal,
+                'expenses' => $expenseTotal,
+                'profit' => $salesTotal - $expenseTotal,
+                'transactions' => $transactions,
+            ],
+        ]);
+    }
+
+    if ($resource === 'expenses' && $method === 'POST') {
+        $type = trim((string) ($body['expense_type'] ?? ''));
+        $description = trim((string) ($body['description'] ?? ''));
+        $amount = filter_var($body['amount'] ?? null, FILTER_VALIDATE_FLOAT);
+        $date = trim((string) ($body['expense_date'] ?? date('Y-m-d')));
+        if ($type === '' || $description === '' || $amount === false || $amount <= 0) {
+            respond(['success' => false, 'message' => 'Expense type, description, and a positive amount are required.'], 422);
+        }
+        $expenseRef = 'EXP-' . str_pad((string) (time() % 10000), 4, '0', STR_PAD_LEFT);
+        $statement = $database->prepare(
+            'INSERT INTO expenses (expense_ref, expense_type, description, amount, expense_date)
+             VALUES (:expense_ref, :expense_type, :description, :amount, :expense_date)'
+        );
+        $statement->execute([
+            'expense_ref' => $expenseRef,
+            'expense_type' => $type,
+            'description' => $description,
+            'amount' => $amount,
+            'expense_date' => $date,
+        ]);
+        respond(['success' => true, 'message' => 'Expense added successfully.', 'expense_ref' => $expenseRef], 201);
+    }
+
     if ($resource === 'products' && $method === 'GET') {
         $search = trim((string) ($_GET['search'] ?? ''));
         $category = trim((string) ($_GET['category'] ?? ''));

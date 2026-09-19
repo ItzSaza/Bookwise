@@ -116,3 +116,15 @@ CREATE TABLE IF NOT EXISTS employees (
     INDEX idx_employees_status (status),
     INDEX idx_employees_department (department)
 ) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS expenses (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    expense_ref VARCHAR(30) NOT NULL UNIQUE,
+    expense_type VARCHAR(100) NOT NULL,
+    description VARCHAR(255) NOT NULL,
+    amount DECIMAL(12, 2) NOT NULL,
+    expense_date DATE NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_expenses_date (expense_date),
+    CONSTRAINT chk_expenses_amount CHECK (amount > 0)
+) ENGINE=InnoDB;

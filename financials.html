@@ -41,13 +41,16 @@
           <h1>Financial Management</h1>
           <p class="lede">Sales income, expenses, and payments — reported daily and monthly.</p>
         </div>
-        <button class="btn btn-primary" onclick="window.open('financial-report.html', '_blank')">Generate Report</button>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-ghost" id="addExpenseBtn">+ Add Expense</button>
+          <button class="btn btn-primary" onclick="window.open('financial-report.html', '_blank')">Generate Report</button>
+        </div>
       </div>
 
       <div class="stats">
-        <div class="stat"><div class="stat-label">Revenue (MTD)</div><div class="stat-val">Rs. 812K</div><div class="stat-note">+8.4% vs last month</div></div>
-        <div class="stat alt"><div class="stat-label">Expenses (MTD)</div><div class="stat-val">Rs. 214K</div><div class="stat-note">Supplier + payroll</div></div>
-        <div class="stat"><div class="stat-label">Net Profit</div><div class="stat-val">Rs. 598K</div><div class="stat-note">Margin 73.6%</div></div>
+        <div class="stat"><div class="stat-label">Revenue (MTD)</div><div class="stat-val" id="revenueValue">Rs. 0</div><div class="stat-note">Paid sales from database</div></div>
+        <div class="stat alt"><div class="stat-label">Expenses (MTD)</div><div class="stat-val" id="expenseValue">Rs. 0</div><div class="stat-note">Recorded expenses</div></div>
+        <div class="stat"><div class="stat-label">Net Profit</div><div class="stat-val" id="profitValue">Rs. 0</div><div class="stat-note">Revenue minus expenses</div></div>
         <div class="stat warn"><div class="stat-label">Outstanding</div><div class="stat-val">Rs. 12,400</div><div class="stat-note down">2 unpaid invoices</div></div>
       </div>
 
@@ -72,12 +75,7 @@
           <div class="panel-body flush">
             <table>
               <thead><tr><th>Ref</th><th>Type</th><th>Amount</th></tr></thead>
-              <tbody>
-                <tr><td class="cell-mono">INV-2291</td><td>Sale</td><td>Rs. 4,550</td></tr>
-                <tr><td class="cell-mono">PAY-0114</td><td>Supplier Payment</td><td>-Rs. 21,050</td></tr>
-                <tr><td class="cell-mono">INV-2290</td><td>Sale</td><td>Rs. 1,150</td></tr>
-                <tr><td class="cell-mono">EXP-0033</td><td>Utility Bill</td><td>-Rs. 6,200</td></tr>
-              </tbody>
+              <tbody id="transactionBody"></tbody>
             </table>
           </div>
         </div>
@@ -86,5 +84,46 @@
   </main>
 </div>
 <script src="script.js"></script>
+<script>
+  (async function () {
+    const money = value => 'Rs. ' + Number(value).toLocaleString('en-LK', { maximumFractionDigits: 0 });
+    const body = document.getElementById('transactionBody');
+    async function loadFinancials() {
+      const response = await fetch('api/index.php?resource=financials');
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.message);
+      document.getElementById('revenueValue').textContent = money(result.data.revenue);
+      document.getElementById('expenseValue').textContent = money(result.data.expenses);
+      document.getElementById('profitValue').textContent = money(result.data.profit);
+      body.innerHTML = result.data.transactions.map(transaction => `<tr>
+        <td class="cell-mono">${transaction.ref}</td>
+        <td>${transaction.type}</td>
+        <td>${money(transaction.amount)}</td>
+      </tr>`).join('') || '<tr><td colspan="3">No transactions recorded yet.</td></tr>';
+    }
+
+    document.getElementById('addExpenseBtn').addEventListener('click', async () => {
+      const type = prompt('Expense type (e.g. Utility Bill):');
+      if (!type) return;
+      const description = prompt('Expense description:');
+      if (!description) return;
+      const amount = prompt('Expense amount:');
+      if (!amount) return;
+      const response = await fetch('api/index.php?resource=expenses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expense_type: type, description, amount })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) return alert(result.message);
+      alert(result.message);
+      await loadFinancials();
+    });
+
+    loadFinancials().catch(error => {
+      body.innerHTML = `<tr><td colspan="3">${error.message}</td></tr>`;
+    });
+  })();
+</script>
 </body>
 </html>
