@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BOOKWISE — Store Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+  .landing-main{max-width:1180px;}
+  .landing-hero{
+    display:grid;
+    grid-template-columns:minmax(0,1.35fr) minmax(300px,.85fr);
+    gap:28px;
+    align-items:stretch;
+    margin-bottom:24px;
+  }
+  .hero-copy{
+    background:var(--navy);
+    color:#fff;
+    border-radius:var(--radius);
+    padding:42px 44px;
+    position:relative;
+    overflow:hidden;
+  }
+  .hero-copy::after{
+    content:'B';
+    position:absolute;
+    right:26px;
+    bottom:-48px;
+    color:rgba(255,255,255,.06);
+    font:700 220px/1 'Fraunces',serif;
+  }
+  .hero-kicker{
+    color:#ffd7d7;
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:1.8px;
+    text-transform:uppercase;
+    margin-bottom:16px;
+  }
+  .hero-copy h1{
+    color:#fff;
+    font-size:clamp(34px,5vw,54px);
+    line-height:1.04;
+    max-width:620px;
+  }
+  .hero-copy p{
+    color:#c7cfe3;
+    font-size:14px;
+    line-height:1.7;
+    max-width:540px;
+    margin:18px 0 26px;
+    position:relative;
+    z-index:1;
+  }
+  .hero-actions{display:flex;gap:10px;flex-wrap:wrap;position:relative;z-index:1;}
+  .hero-actions .btn-primary{background:var(--gold);color:var(--navy-deep);}
+  .hero-actions .btn-primary:hover{background:#d7b53a;}
+  .hero-actions .btn-ghost{color:#fff;border-color:rgba(255,255,255,.25);}
+  .hero-actions .btn-ghost:hover{border-color:#fff;}
+  .hero-summary{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:26px;
+  }
+  .hero-summary h2,.module-heading{
+    font:600 21px 'Fraunces',serif;
+    color:var(--navy-deep);
+    margin:0;
+  }
+  .hero-summary p{color:var(--muted);font-size:13px;line-height:1.6;margin:8px 0 20px;}
+  .summary-list{display:grid;gap:12px;}
+  .summary-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:12px;border-bottom:1px solid #f0ebdd;font-size:12px;}
+  .summary-item:last-child{padding-bottom:0;border-bottom:0;}
+  .summary-item strong{font:600 21px 'Fraunces',serif;color:var(--navy-deep);}
+  .summary-item span{color:var(--muted);}
+  .module-heading{margin:30px 0 14px;}
+  .module-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+  .module-card{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:20px;
+    display:flex;
+    flex-direction:column;
+    min-height:174px;
+    transition:transform .15s,box-shadow .15s,border-color .15s;
+  }
+  .module-card:hover{transform:translateY(-2px);border-color:#cfc5ad;box-shadow:0 8px 20px rgba(27,42,74,.08);}
+  .module-number{font:500 11px 'JetBrains Mono',monospace;color:var(--burgundy);letter-spacing:.5px;margin-bottom:16px;}
+  .module-card h3{font:600 18px 'Fraunces',serif;color:var(--navy-deep);margin:0 0 7px;}
+  .module-card p{color:var(--muted);font-size:12px;line-height:1.55;margin:0 0 18px;}
+  .module-link{margin-top:auto;color:var(--burgundy);font-size:12px;font-weight:700;text-decoration:none;}
+  .module-link:hover{color:var(--burgundy-deep);}
+  .landing-footer{color:var(--muted);font-size:11.5px;margin-top:30px;padding-top:16px;border-top:1px solid var(--line);}
+  .menu-toggle{
+    display:none;
+    position:fixed;
+    top:16px;
+    left:16px;
+    z-index:1100;
+    width:44px;
+    height:44px;
+    border:1px solid rgba(255,255,255,.18);
+    border-radius:8px;
+    background:var(--navy);
+    color:#fff;
+    cursor:pointer;
+    box-shadow:0 6px 18px rgba(18,32,58,.18);
+  }
+  .menu-toggle span,
+  .menu-toggle span::before,
+  .menu-toggle span::after{
+    display:block;
+    width:19px;
+    height:2px;
+    margin:auto;
+    background:currentColor;
+    transition:transform .2s,opacity .2s;
+  }
+  .menu-toggle span{position:relative;}
+  .menu-toggle span::before,
+  .menu-toggle span::after{content:'';position:absolute;left:0;}
+  .menu-toggle span::before{top:-6px;}
+  .menu-toggle span::after{top:6px;}
+  .menu-toggle[aria-expanded="true"] span{background:transparent;}
+  .menu-toggle[aria-expanded="true"] span::before{transform:translateY(6px) rotate(45deg);}
+  .menu-toggle[aria-expanded="true"] span::after{transform:translateY(-6px) rotate(-45deg);}
+  .menu-overlay{display:none;}
+  @media(max-width:900px){
+    .menu-toggle{display:block;}
+    .menu-overlay{
+      position:fixed;
+      inset:0;
+      z-index:900;
+      background:rgba(18,32,58,.48);
+    }
+    body.menu-open .menu-overlay{display:block;}
+    .app{display:block;}
+    .sidebar{
+      position:fixed;
+      left:0;
+      top:0;
+      bottom:0;
+      z-index:1000;
+      width:270px;
+      height:100vh;
+      transform:translateX(-100%);
+      transition:transform .22s ease;
+      box-shadow:12px 0 30px rgba(18,32,58,.2);
+    }
+    body.menu-open .sidebar{transform:translateX(0);}
+    .main{max-width:none;padding:82px 24px 44px;}
+    .landing-hero{grid-template-columns:1fr;}
+    .module-grid{grid-template-columns:repeat(2,1fr);}
+  }
+  @media(max-width:600px){
+    .main{padding:24px 18px 44px;}
+    .hero-copy{padding:30px 26px;}
+    .module-grid{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+<button class="menu-toggle" type="button" aria-label="Open navigation menu" aria-controls="site-navigation" aria-expanded="false">
+  <span></span>
+</button>
+<div class="menu-overlay" aria-hidden="true"></div>
+<div class="app">
+  <aside class="sidebar" id="site-navigation">
+    <div class="brand">
+      <div class="brand-mark">B</div>
+      <div class="brand-name">Bookwise</div>
+    </div>
+    <div class="brand-sub">Minre Book Shop · Console</div>
+    <ul class="nav" id="nav">
+      <li class="active"><a href="index.html"><span class="num">00</span> Overview</a></li>
+      <li><a href="user-management.html"><span class="num">01</span> User Management</a></li>
+      <li><a href="inventory.html"><span class="num">02</span> Inventory</a></li>
+      <li><a href="suppliers.html"><span class="num">03</span> Suppliers</a></li>
+      <li><a href="orders-pos.html"><span class="num">04</span> Orders &amp; POS</a></li>
+      <li><a href="financials.html"><span class="num">05</span> Financials</a></li>
+      <li><a href="services-staff.html"><span class="num">06</span> Services &amp; Staff</a></li>
+    </ul>
+    <div class="sidebar-foot">
+      Role-based dashboard preview
+      <div class="who">
+        <div class="avatar">TP</div>
+        <div>H M T N Perera<br><span style="color:#6f7ea3">Admin</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main landing-main">
+    <section class="landing-hero">
+      <div class="hero-copy">
+        <div class="hero-kicker">Bookwise store console</div>
+        <h1>Everything your bookshop needs, in one place.</h1>
+        <p>Manage products, suppliers, sales, finances, users, and staff from a single operational workspace.</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="orders-pos.html">Open Orders &amp; POS</a>
+          <a class="btn btn-ghost" href="inventory.html">View Inventory</a>
+        </div>
+      </div>
+
+      <div class="hero-summary">
+        <h2>Store snapshot</h2>
+        <p>A quick starting point for today’s work.</p>
+        <div class="summary-list">
+          <div class="summary-item"><span>Inventory items</span><strong>142</strong></div>
+          <div class="summary-item"><span>Active suppliers</span><strong>15</strong></div>
+          <div class="summary-item"><span>Orders this month</span><strong>128</strong></div>
+          <div class="summary-item"><span>Staff on shift</span><strong>9</strong></div>
+        </div>
+      </div>
+    </section>
+
+    <h2 class="module-heading">Manage your store</h2>
+    <section class="module-grid" aria-label="Bookwise modules">
+      <article class="module-card">
+        <div class="module-number">01 / PEOPLE</div>
+        <h3>User Management</h3>
+        <p>Create accounts, assign roles, and manage access to the console.</p>
+        <a class="module-link" href="user-management.html">Manage users →</a>
+      </article>
+      <article class="module-card">
+        <div class="module-number">02 / STOCK</div>
+        <h3>Inventory</h3>
+        <p>Track products, prices, stock counts, and reorder levels.</p>
+        <a class="module-link" href="inventory.html">Open inventory →</a>
+      </article>
+      <article class="module-card">
+        <div class="module-number">03 / SOURCING</div>
+        <h3>Suppliers</h3>
+        <p>Maintain supplier records and monitor purchase orders.</p>
+        <a class="module-link" href="suppliers.html">View suppliers →</a>
+      </article>
+      <article class="module-card">
+        <div class="module-number">04 / SALES</div>
+        <h3>Orders &amp; POS</h3>
+        <p>Build customer orders, complete sales, and print receipts.</p>
+        <a class="module-link" href="orders-pos.html">Start a sale →</a>
+      </article>
+      <article class="module-card">
+        <div class="module-number">05 / REPORTING</div>
+        <h3>Financials</h3>
+        <p>Review revenue, expenses, profit, and recent transactions.</p>
+        <a class="module-link" href="financials.html">View financials →</a>
+      </article>
+      <article class="module-card">
+        <div class="module-number">06 / OPERATIONS</div>
+        <h3>Services &amp; Staff</h3>
+        <p>Maintain employee records and organise weekly shift schedules.</p>
+        <a class="module-link" href="services-staff.html">Manage staff →</a>
+      </article>
+    </section>
+
+    <footer class="landing-footer">Bookwise · Minre Book Shop · Store operations console</footer>
+  </main>
+</div>
+<script>
+  (function () {
+    var menuToggle = document.querySelector('.menu-toggle');
+    var menuOverlay = document.querySelector('.menu-overlay');
+    var navigationLinks = document.querySelectorAll('.sidebar a');
+
+    function setMenuState(isOpen) {
+      document.body.classList.toggle('menu-open', isOpen);
+      menuToggle.setAttribute('aria-expanded', String(isOpen));
+      menuToggle.setAttribute('aria-label', isOpen ? 'Close navigation menu' : 'Open navigation menu');
+    }
+
+    menuToggle.addEventListener('click', function () {
+      setMenuState(!document.body.classList.contains('menu-open'));
+    });
+
+    menuOverlay.addEventListener('click', function () {
+      setMenuState(false);
+    });
+
+    navigationLinks.forEach(function (link) {
+      link.addEventListener('click', function () {
+        setMenuState(false);
+      });
+    });
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') setMenuState(false);
+    });
+  })();
+</script>
+</body>
+</html>
