@@ -25,10 +25,15 @@ function requestBody(): array
 function validateProduct(array $input): array
 {
     $name = trim((string) ($input['name'] ?? ''));
-    $categoryId = filter_var($input['category_id'] ?? null, FILTER_VALIDATE_INT);
-    $price = filter_var($input['unit_price'] ?? null, FILTER_VALIDATE_FLOAT);
-    $stock = filter_var($input['stock_quantity'] ?? null, FILTER_VALIDATE_INT);
-    $reorder = filter_var($input['reorder_level'] ?? null, FILTER_VALIDATE_INT);
+    $categoryValue = $input['category_id'] ?? null;
+    $priceValue = $input['unit_price'] ?? null;
+    $stockValue = $input['stock_quantity'] ?? null;
+    $reorderValue = $input['reorder_level'] ?? null;
+
+    $categoryId = filter_var($categoryValue, FILTER_VALIDATE_INT);
+    $price = is_numeric($priceValue) ? (float) $priceValue : false;
+    $stock = filter_var($stockValue, FILTER_VALIDATE_INT);
+    $reorder = filter_var($reorderValue, FILTER_VALIDATE_INT);
 
     if ($name === '' || $categoryId === false || $price === false || $stock === false || $reorder === false) {
         respond(['success' => false, 'message' => 'Name, category, price, stock, and reorder level are required.'], 422);
