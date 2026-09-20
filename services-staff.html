@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -764,6 +764,7 @@
 
 <script>
 (function(){
+  // This block stores the page state used for employee listing, shift scheduling, filters, and modal behavior.
   var employees = [];
   var shifts = [];
   var nextEmpId = 1;
@@ -772,6 +773,7 @@
   var searchTerm = "";
   var editingId = null;
 
+  // Element references for the employee directory, stats cards, and modal forms.
   var tbody = document.getElementById("employee-tbody");
   var shiftList = document.getElementById("shift-list");
   var directoryCount = document.getElementById("directory-count");
@@ -793,6 +795,7 @@
   var toastEl = document.getElementById("toast");
   var toastTimer = null;
 
+  // Shows a temporary toast message used for success/error feedback across the page.
   function showToast(msg){
     toastEl.textContent = msg;
     toastEl.classList.add("show");
@@ -800,6 +803,7 @@
     toastTimer = setTimeout(function(){ toastEl.classList.remove("show"); }, 2200);
   }
 
+  // Fetches all employee records from the backend API and refreshes the rendered directory.
   function loadEmployees(){
     return fetch("api/index.php?resource=employees")
       .then(function(response){ return response.json().then(function(result){ return { response: response, result: result }; }); })
@@ -811,18 +815,21 @@
       });
   }
 
+  // Builds initials from a full employee name for quick avatar-like display styling.
   function initials(name){
     var parts = name.trim().split(/\s+/);
     if (parts.length === 1) return parts[0].slice(0,2).toUpperCase();
     return (parts[0][0] + parts[parts.length-1][0]).toUpperCase();
   }
 
+  // Converts backend status values into readable labels for the UI.
   function statusLabel(status){
     if (status === "active") return "Active";
     if (status === "leave") return "On Leave";
     return "Inactive";
   }
 
+  // Filters employees based on the selected tab (all, cashier, inventory, management, inactive).
   function matchesFilter(emp){
     if (activeFilter === "all") return true;
     if (activeFilter === "cashiers") return emp.role.toLowerCase().indexOf("cashier") !== -1;
@@ -832,13 +839,15 @@
     return true;
   }
 
+  // Checks whether a given employee matches the live search text entered in the UI.
   function matchesSearch(emp){
     if (!searchTerm) return true;
     return emp.name.toLowerCase().indexOf(searchTerm.toLowerCase()) !== -1;
   }
 
+  // Renders the employee table, directory summary, metric cards, and shift assignment options.
   function render(){
-    // Filter + search
+    // Applies the selected filter and search phrases to the employee list before drawing the table.
     var visible = employees.filter(function(e){ return matchesFilter(e) && matchesSearch(e); });
 
     tbody.innerHTML = "";
@@ -894,7 +903,7 @@
 
     directoryCount.textContent = visible.length + (visible.length === 1 ? " employee" : " employees") + " · sorted by name";
 
-    // Stats
+    // Updates summary statistics shown at the top of the staff page.
     var total = employees.length;
     var active = employees.filter(function(e){ return e.status === "active"; }).length;
     var inactive = employees.filter(function(e){ return e.status === "inactive"; }).length;
@@ -903,7 +912,7 @@
     statTotalFoot.textContent = active + " active · " + inactive + " inactive";
     statLeave.textContent = onLeave;
 
-    // Shift employee select
+    // Prepulates the shift form dropdown with the current employee list.
     shiftEmployeeSelect.innerHTML = "";
     employees.forEach(function(emp){
       var opt = document.createElement("option");
@@ -915,6 +924,7 @@
     renderShifts();
   }
 
+  // Draws the shift cards that appear in the schedule area for the current list of shifts.
   function renderShifts(){
     shiftList.innerHTML = "";
     if (shifts.length === 0){
@@ -953,7 +963,7 @@
     });
   }
 
-  // Tabs
+  // Handles tab switching for employee categories and updates the filter state.
   document.getElementById("tabs").addEventListener("click", function(e){
     var tab = e.target.closest(".tab");
     if (!tab) return;
@@ -963,13 +973,13 @@
     render();
   });
 
-  // Search
+  // Re-renders the employee table every time the search box value changes.
   document.getElementById("search-box").addEventListener("input", function(e){
     searchTerm = e.target.value;
     render();
   });
 
-  // Add Employee
+  // Opens the employee modal in add mode and resets the form fields.
   document.getElementById("btn-add-employee").addEventListener("click", function(){
     editingId = null;
     empModalTitle.textContent = "Add Employee";
@@ -982,6 +992,7 @@
     document.getElementById("f-name").focus();
   });
 
+  // Fills the employee form with the selected employee for editing and opens the modal.
   function openEditModal(id){
     var emp = employees.find(function(e){ return e.id === id; });
     if (!emp) return;
@@ -998,16 +1009,19 @@
     empModalOverlay.classList.add("open");
   }
 
+  // Closes the employee form modal and clears the edit state.
   function closeEmployeeModal(){
     empModalOverlay.classList.remove("open");
     editingId = null;
   }
 
+  // Binds modal-close controls and click-outside behavior for the employee dialog.
   document.getElementById("btn-cancel-employee").addEventListener("click", closeEmployeeModal);
   empModalOverlay.addEventListener("click", function(e){
     if (e.target === empModalOverlay) closeEmployeeModal();
   });
 
+  // Saves a new employee or updates an existing one through the backend API.
   empForm.addEventListener("submit", function(e){
     e.preventDefault();
     var name = document.getElementById("f-name").value.trim();
@@ -1032,6 +1046,7 @@
       }).catch(function(error){ showToast(error.message); });
   });
 
+  // Deactivates the selected employee through the API and removes their scheduled shifts from the current page state.
   deleteBtn.addEventListener("click", function(){
     if (editingId === null) return;
     fetch("api/index.php?resource=employees&id=" + editingId, { method: "DELETE" })
@@ -1045,7 +1060,7 @@
       }).catch(function(error){ showToast(error.message); });
   });
 
-  // Shift modal
+  // Opens the shift form only when at least one employee exists in the directory.
   document.getElementById("btn-new-shift").addEventListener("click", function(){
     if (employees.length === 0){
       showToast("Add an employee first");
@@ -1055,12 +1070,14 @@
     shiftModalOverlay.classList.add("open");
   });
 
+  // Closes the shift scheduling modal without submitting any data.
   function closeShiftModal(){ shiftModalOverlay.classList.remove("open"); }
   document.getElementById("btn-cancel-shift").addEventListener("click", closeShiftModal);
   shiftModalOverlay.addEventListener("click", function(e){
     if (e.target === shiftModalOverlay) closeShiftModal();
   });
 
+  // Saves a new shift assignment for the selected employee and updates the visible schedule card list.
   shiftForm.addEventListener("submit", function(e){
     e.preventDefault();
     var empId = parseInt(shiftEmployeeSelect.value, 10);
@@ -1075,7 +1092,7 @@
     showToast("Shift scheduled");
   });
 
-  // Esc closes any open modal
+  // Pressing Escape closes both modals to keep the page keyboard-friendly.
   document.addEventListener("keydown", function(e){
     if (e.key === "Escape"){
       closeEmployeeModal();
@@ -1083,6 +1100,7 @@
     }
   });
 
+  // Initializes the page by loading employee data from the API and showing any connection errors via toast.
   loadEmployees().catch(function(error){
     showToast(error.message);
     render();

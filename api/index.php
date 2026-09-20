@@ -6,6 +6,7 @@ header('Content-Type: application/json; charset=utf-8');
 
 require_once __DIR__ . '/config/database.php';
 
+// Shared API response helper: sends a JSON response and stops script execution.
 function respond(mixed $data, int $status = 200): never
 {
     http_response_code($status);
@@ -13,12 +14,14 @@ function respond(mixed $data, int $status = 200): never
     exit;
 }
 
+// Reads the raw JSON request body and converts it into a PHP array for validation and processing.
 function requestBody(): array
 {
     $body = json_decode(file_get_contents('php://input'), true);
     return is_array($body) ? $body : [];
 }
 
+// Validates product form data before inserting or updating a product record.
 function validateProduct(array $input): array
 {
     $name = trim((string) ($input['name'] ?? ''));
@@ -47,6 +50,7 @@ function validateProduct(array $input): array
     ];
 }
 
+// Validates supplier input before creating a supplier record in the database.
 function validateSupplier(array $input): array
 {
     $name = trim((string) ($input['name'] ?? ''));
@@ -71,6 +75,7 @@ function validateSupplier(array $input): array
     ];
 }
 
+// Validates and normalizes sale data, including item totals, discount, tax, and final total.
 function validateSale(array $input): array
 {
     $items = $input['items'] ?? [];
@@ -108,6 +113,7 @@ function validateSale(array $input): array
     ];
 }
 
+// Main API entry point: opens the database connection and routes the request to the correct logic block.
 try {
     $database = getDatabaseConnection();
     $path = trim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '', '/');
@@ -120,16 +126,19 @@ try {
     $method = $_SERVER['REQUEST_METHOD'];
     $body = requestBody();
 
+    // Root health-check endpoint: confirms the API is running and the database is reachable.
     if ($resource === '' && $method === 'GET') {
         $database->query('SELECT 1');
         respond(['success' => true, 'message' => 'Bookwise API is connected to MySQL.']);
     }
 
+    // Category lookup endpoint: returns the available inventory categories.
     if ($resource === 'categories' && $method === 'GET') {
         $categories = $database->query('SELECT id, name FROM categories ORDER BY name')->fetchAll();
         respond(['success' => true, 'data' => $categories]);
     }
 
+    // Supplier retrieval endpoint: fetches supplier records, optionally filtered by active status.
     if ($resource === 'suppliers' && $method === 'GET') {
         $status = ($_GET['status'] ?? 'all') === 'active' ? 'Active' : null;
         $sql = 'SELECT id, name, contact_person, phone, email, address, category,
@@ -145,6 +154,7 @@ try {
         respond(['success' => true, 'data' => $suppliers]);
     }
 
+    // Supplier creation endpoint: validates and inserts a new supplier record.
     if ($resource === 'suppliers' && $method === 'POST') {
         $supplier = validateSupplier(requestBody());
         $statement = $database->prepare(
@@ -156,6 +166,7 @@ try {
         respond(['success' => true, 'message' => 'Supplier added successfully.', 'id' => (int) $database->lastInsertId()], 201);
     }
 
+    // Supplier deactivation endpoint: marks a supplier as inactive instead of deleting the record.
     if ($resource === 'suppliers' && $id && $method === 'DELETE') {
         $statement = $database->prepare("UPDATE suppliers SET status = 'Inactive' WHERE id = :id");
         $statement->execute(['id' => $id]);
@@ -165,6 +176,7 @@ try {
         respond(['success' => true, 'message' => 'Supplier deactivated successfully.']);
     }
 
+    // Sales list endpoint: returns recent sales records with totals and basic summary data.
     if ($resource === 'sales' && $method === 'GET') {
         $statement = $database->query(
             'SELECT s.order_ref AS ref, s.customer_name AS customer, COUNT(si.id) AS items,
@@ -179,6 +191,7 @@ try {
         respond(['success' => true, 'data' => $statement->fetchAll()]);
     }
 
+    // Sale creation endpoint: validates items, inserts the sales header, and creates item rows in one transaction.
     if ($resource === 'sales' && $method === 'POST') {
         $sale = validateSale(requestBody());
         $database->beginTransaction();
@@ -215,6 +228,7 @@ try {
         respond(['success' => true, 'message' => 'Sale completed successfully.', 'order_ref' => $orderRef], 201);
     }
 
+    // User list endpoint: retrieves staff and admin user records.
     if ($resource === 'users' && $method === 'GET') {
         $statement = $database->query(
             'SELECT id, full_name, email, role, status
@@ -224,6 +238,7 @@ try {
         respond(['success' => true, 'data' => $statement->fetchAll()]);
     }
 
+    // User creation endpoint: validates the user record before adding it to the system.
     if ($resource === 'users' && $method === 'POST') {
         $name = trim((string) ($body['full_name'] ?? ''));
         $email = trim((string) ($body['email'] ?? ''));
@@ -245,6 +260,7 @@ try {
         respond(['success' => true, 'message' => 'User added successfully.', 'id' => (int) $database->lastInsertId()], 201);
     }
 
+    // User status update endpoint: toggles the active/inactive status for an individual user.
     if ($resource === 'users' && $id && $method === 'PATCH') {
         $status = (($body['status'] ?? '') === 'Active') ? 'Active' : 'Inactive';
         $statement = $database->prepare('UPDATE users SET status = :status WHERE id = :id');
@@ -255,6 +271,7 @@ try {
         respond(['success' => true, 'message' => 'User status updated successfully.']);
     }
 
+    // Employee lookup endpoint: returns all employee records sorted by name.
     if ($resource === 'employees' && $method === 'GET') {
         $statement = $database->query(
             'SELECT id, name, role, phone, department, status
@@ -264,6 +281,7 @@ try {
         respond(['success' => true, 'data' => $statement->fetchAll()]);
     }
 
+    // Employee creation endpoint: validates the employee details and inserts the record.
     if ($resource === 'employees' && $method === 'POST') {
         $employee = [
             'name' => trim((string) ($body['name'] ?? '')),
@@ -285,6 +303,7 @@ try {
         respond(['success' => true, 'message' => 'Employee added successfully.', 'id' => (int) $database->lastInsertId()], 201);
     }
 
+    // Employee update endpoint: edits an existing employee record using the provided id.
     if ($resource === 'employees' && $id && $method === 'PUT') {
         $employee = [
             'id' => $id,
@@ -308,12 +327,14 @@ try {
         respond(['success' => true, 'message' => 'Employee updated successfully.']);
     }
 
+    // Employee deactivation endpoint: marks the employee as inactive instead of physically deleting them.
     if ($resource === 'employees' && $id && $method === 'DELETE') {
         $statement = $database->prepare("UPDATE employees SET status = 'inactive' WHERE id = :id");
         $statement->execute(['id' => $id]);
         respond(['success' => true, 'message' => 'Employee deactivated successfully.']);
     }
 
+    // Financial summary endpoint: calculates revenue, expenses, profit, and recent transaction history for the month.
     if ($resource === 'financials' && $method === 'GET') {
         $salesTotal = (float) $database->query(
             "SELECT COALESCE(SUM(total_amount), 0) FROM sales
@@ -342,6 +363,7 @@ try {
         ]);
     }
 
+    // Expense creation endpoint: validates amount, description, and date before storing the expense record.
     if ($resource === 'expenses' && $method === 'POST') {
         $type = trim((string) ($body['expense_type'] ?? ''));
         $description = trim((string) ($body['description'] ?? ''));
@@ -365,6 +387,7 @@ try {
         respond(['success' => true, 'message' => 'Expense added successfully.', 'expense_ref' => $expenseRef], 201);
     }
 
+    // Product listing endpoint: returns active products with search and category filtering options.
     if ($resource === 'products' && $method === 'GET') {
         $search = trim((string) ($_GET['search'] ?? ''));
         $category = trim((string) ($_GET['category'] ?? ''));
@@ -391,6 +414,7 @@ try {
         respond(['success' => true, 'data' => $statement->fetchAll()]);
     }
 
+    // Product creation endpoint: validates the incoming product data and inserts a new record.
     if ($resource === 'products' && $method === 'POST') {
         $product = validateProduct(requestBody());
         $sku = 'DEMO-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 6));
@@ -403,6 +427,7 @@ try {
         respond(['success' => true, 'message' => 'Product added successfully.', 'id' => (int) $database->lastInsertId()], 201);
     }
 
+    // Product update endpoint: updates the selected product with the provided validated values.
     if ($resource === 'products' && $id && $method === 'PUT') {
         $product = validateProduct(requestBody());
         $statement = $database->prepare(
@@ -418,6 +443,7 @@ try {
         respond(['success' => true, 'message' => 'Product updated successfully.']);
     }
 
+    // Product deactivation endpoint: disables the product while keeping its record for audit/history.
     if ($resource === 'products' && $id && $method === 'DELETE') {
         $statement = $database->prepare("UPDATE products SET status = 'Inactive' WHERE id = :id");
         $statement->execute(['id' => $id]);
@@ -427,9 +453,12 @@ try {
         respond(['success' => true, 'message' => 'Product deleted successfully.']);
     }
 
+    // Fallback response for unknown endpoints.
     respond(['success' => false, 'message' => 'Endpoint not found.'], 404);
 } catch (PDOException $error) {
+    // Database-level failure handler: returns a 500 error when the SQL query fails.
     respond(['success' => false, 'message' => 'Database request failed.'], 500);
 } catch (Throwable $error) {
+    // General error handler: prevents the application from exposing raw server exceptions.
     respond(['success' => false, 'message' => 'Unexpected server error.'], 500);
 }
