@@ -49,10 +49,10 @@
       </div>
 
       <div class="stats">
-        <div class="stat"><div class="stat-label">Total Suppliers</div><div class="stat-val">18</div><div class="stat-note">15 active · 3 inactive</div></div>
-        <div class="stat alt"><div class="stat-label">Active Purchase Orders</div><div class="stat-val">7</div><div class="stat-note">Awaiting delivery</div></div>
-        <div class="stat"><div class="stat-label">Purchase Value (MTD)</div><div class="stat-val">Rs. 112K</div><div class="stat-note">Paid to suppliers</div></div>
-        <div class="stat warn"><div class="stat-label">Overdue Deliveries</div><div class="stat-val">2</div><div class="stat-note down">Past expected date</div></div>
+        <div class="stat"><div class="stat-label">Total Suppliers</div><div class="stat-val" id="statTotalSuppliers">–</div><div class="stat-note" id="statSupplierBreakdown">Loading…</div></div>
+        <div class="stat alt"><div class="stat-label">Active Purchase Orders</div><div class="stat-val" id="statActivePOs">–</div><div class="stat-note">Awaiting delivery</div></div>
+        <div class="stat"><div class="stat-label">Purchase Value (MTD)</div><div class="stat-val" id="statPOValue">–</div><div class="stat-note">Across all orders</div></div>
+        <div class="stat warn"><div class="stat-label">Overdue Deliveries</div><div class="stat-val" id="statOverdue">–</div><div class="stat-note down">Past expected date</div></div>
       </div>
 
       <div class="tag-row" id="categoryFilters">
@@ -66,7 +66,7 @@
 
       <div class="panel">
         <div class="panel-head">
-          <div><h3>Supplier Directory</h3><div class="sub" id="supplierCount">18 suppliers · sorted by name</div></div>
+          <div><h3>Supplier Directory</h3><div class="sub" id="supplierCount">Loading suppliers…</div></div>
           <input class="tag" id="supplierSearch" style="border:1px solid var(--line)" placeholder="Search by supplier name" />
         </div>
         <div class="panel-body flush">
@@ -80,18 +80,13 @@
 
       <div class="panel">
         <div class="panel-head">
-          <div><h3>Purchase Orders</h3><div class="sub">7 active · this month</div></div>
+          <div><h3>Purchase Orders</h3><div class="sub" id="poCount">Loading purchase orders…</div></div>
           <button class="btn btn-ghost btn-sm" onclick="window.open('supplier-report.html', '_blank')">Generate Report</button>
         </div>
         <div class="panel-body flush">
           <table>
-            <thead><tr><th>PO Ref</th><th>Supplier</th><th>Order Date</th><th>Expected</th><th>Total</th><th>Status</th></tr></thead>
-            <tbody>
-              <tr><td class="cell-mono">PO-0142</td><td>Vijitha Yapa Distributors</td><td>21 Aug 2026</td><td>29 Aug 2026</td><td>Rs. 21,050</td><td><span class="badge gold">Pending</span></td></tr>
-              <tr><td class="cell-mono">PO-0141</td><td>Wasana Stationery Hub</td><td>18 Aug 2026</td><td>25 Aug 2026</td><td>Rs. 14,300</td><td><span class="badge red">Overdue</span></td></tr>
-              <tr><td class="cell-mono">PO-0139</td><td>Colombo Art Supplies</td><td>12 Aug 2026</td><td>19 Aug 2026</td><td>Rs. 9,800</td><td><span class="badge green">Delivered</span></td></tr>
-              <tr><td class="cell-mono">PO-0136</td><td>Vijitha Yapa Distributors</td><td>03 Aug 2026</td><td>10 Aug 2026</td><td>Rs. 18,600</td><td><span class="badge green">Delivered</span></td></tr>
-            </tbody>
+            <thead><tr><th>PO Ref</th><th>Supplier</th><th>Order Date</th><th>Expected</th><th>Total</th><th>Status</th><th></th></tr></thead>
+            <tbody id="poTableBody"></tbody>
           </table>
         </div>
       </div>
@@ -107,8 +102,11 @@
     const searchInput = document.getElementById('supplierSearch');
     const countLabel = document.getElementById('supplierCount');
     const emptyState = document.getElementById('supplierEmptyState');
+    const poTableBody = document.getElementById('poTableBody');
+    const poCount = document.getElementById('poCount');
     let activeFilter = 'All Suppliers';
     let suppliers = [];
+    let purchaseOrders = [];
 
     function escapeHtml(value) {
       return String(value).replace(/[&<>"']/g, character => ({
@@ -116,7 +114,11 @@
       }[character]));
     }
 
-    function render() {
+    function money(value) {
+      return 'Rs. ' + Number(value).toLocaleString('en-LK', { maximumFractionDigits: 0 });
+    }
+
+    function renderSuppliers() {
       const query = searchInput.value.trim().toLowerCase();
       const visible = suppliers.filter(supplier => {
         const matchesSearch = supplier.name.toLowerCase().includes(query);
@@ -131,10 +133,54 @@
         <td class="cell-mono">${escapeHtml(supplier.phone)}</td>
         <td>${escapeHtml(supplier.category)}</td>
         <td><span class="badge ${supplier.status === 'Active' ? 'green' : 'grey'}">${supplier.status}</span></td>
-        <td>${supplier.status === 'Active' ? `<button class="icon-btn" data-delete-id="${supplier.id}">Deactivate</button>` : ''}</td>
+        <td>
+          <button class="icon-btn" data-edit-id="${supplier.id}">Edit</button>
+          ${supplier.status === 'Active' ? `<button class="icon-btn" data-delete-id="${supplier.id}">Deactivate</button>` : ''}
+        </td>
       </tr>`).join('');
       countLabel.textContent = `${visible.length} ${visible.length === 1 ? 'supplier' : 'suppliers'} · loaded from database`;
       emptyState.style.display = visible.length === 0 ? 'block' : 'none';
+
+      const activeCount = suppliers.filter(s => s.status === 'Active').length;
+      const inactiveCount = suppliers.length - activeCount;
+      document.getElementById('statTotalSuppliers').textContent = suppliers.length;
+      document.getElementById('statSupplierBreakdown').textContent = `${activeCount} active · ${inactiveCount} inactive`;
+    }
+
+    function poStatusBadge(order) {
+      if (order.status === 'Delivered') return '<span class="badge green">Delivered</span>';
+      if (order.status === 'Cancelled') return '<span class="badge grey">Cancelled</span>';
+      return Number(order.is_overdue) === 1
+        ? '<span class="badge red">Overdue</span>'
+        : '<span class="badge gold">Pending</span>';
+    }
+
+    function renderPurchaseOrders() {
+      poTableBody.innerHTML = purchaseOrders.map(order => `<tr>
+        <td class="cell-mono">${escapeHtml(order.po_ref)}</td>
+        <td>${escapeHtml(order.supplier_name)}</td>
+        <td>${escapeHtml(order.order_date)}</td>
+        <td>${order.expected_date ? escapeHtml(order.expected_date) : '—'}</td>
+        <td>${money(order.total_amount)}</td>
+        <td>${poStatusBadge(order)}</td>
+        <td>
+          ${order.status === 'Pending' ? `
+            <button class="icon-btn" data-deliver-id="${order.id}">Mark Delivered</button>
+            <button class="icon-btn" data-cancel-id="${order.id}">Cancel</button>
+          ` : ''}
+        </td>
+      </tr>`).join('');
+
+      const active = purchaseOrders.filter(o => o.status === 'Pending');
+      const overdue = active.filter(o => Number(o.is_overdue) === 1);
+      const totalValue = purchaseOrders
+        .filter(o => o.status !== 'Cancelled')
+        .reduce((sum, o) => sum + Number(o.total_amount), 0);
+
+      poCount.textContent = `${purchaseOrders.length} ${purchaseOrders.length === 1 ? 'order' : 'orders'} · loaded from database`;
+      document.getElementById('statActivePOs').textContent = active.length;
+      document.getElementById('statPOValue').textContent = money(totalValue);
+      document.getElementById('statOverdue').textContent = overdue.length;
     }
 
     async function loadSuppliers() {
@@ -142,7 +188,15 @@
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.message);
       suppliers = result.data;
-      render();
+      renderSuppliers();
+    }
+
+    async function loadPurchaseOrders() {
+      const response = await fetch('api/index.php?resource=purchase_orders');
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.message);
+      purchaseOrders = result.data;
+      renderPurchaseOrders();
     }
 
     tags.forEach(tag => {
@@ -150,22 +204,52 @@
         tags.forEach(t => t.classList.remove('active'));
         tag.classList.add('active');
         activeFilter = tag.dataset.filter;
-        render();
+        renderSuppliers();
       });
     });
 
-    searchInput.addEventListener('input', render);
+    searchInput.addEventListener('input', renderSuppliers);
+
     tableBody.addEventListener('click', async event => {
-      const button = event.target.closest('[data-delete-id]');
-      if (!button || !confirm('Deactivate this supplier?')) return;
-      const response = await fetch(`api/index.php?resource=suppliers&id=${button.dataset.deleteId}`, { method: 'DELETE' });
+      const editButton = event.target.closest('[data-edit-id]');
+      if (editButton) {
+        window.location.href = `add-supplier.html?id=${editButton.dataset.editId}`;
+        return;
+      }
+      const deleteButton = event.target.closest('[data-delete-id]');
+      if (!deleteButton || !confirm('Deactivate this supplier?')) return;
+      const response = await fetch(`api/index.php?resource=suppliers&id=${deleteButton.dataset.deleteId}`, { method: 'DELETE' });
       const result = await response.json();
       if (!response.ok || !result.success) return alert(result.message);
       await loadSuppliers();
     });
 
+    poTableBody.addEventListener('click', async event => {
+      const deliverButton = event.target.closest('[data-deliver-id]');
+      const cancelButton = event.target.closest('[data-cancel-id]');
+      if (deliverButton) {
+        const response = await fetch(`api/index.php?resource=purchase_orders&id=${deliverButton.dataset.deliverId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'Delivered' })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) return alert(result.message);
+        await loadPurchaseOrders();
+      }
+      if (cancelButton && confirm('Cancel this purchase order?')) {
+        const response = await fetch(`api/index.php?resource=purchase_orders&id=${cancelButton.dataset.cancelId}`, { method: 'DELETE' });
+        const result = await response.json();
+        if (!response.ok || !result.success) return alert(result.message);
+        await loadPurchaseOrders();
+      }
+    });
+
     loadSuppliers().catch(error => {
       tableBody.innerHTML = `<tr><td colspan="6">${error.message}</td></tr>`;
+    });
+    loadPurchaseOrders().catch(error => {
+      poTableBody.innerHTML = `<tr><td colspan="7">${error.message}</td></tr>`;
     });
   })();
 </script>

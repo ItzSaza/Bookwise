@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<!-- Purchase-order creation page: builds a restocking order and captures supplier delivery details. -->
+<!-- Purchase-order creation page: builds a restocking order and saves it through the backend API. -->
 <div class="app">
   <!-- SIDEBAR -->
   <aside class="sidebar">
@@ -53,17 +53,12 @@
         <div class="form-grid">
           <div class="field">
             <label>Supplier</label>
-            <select id="poSupplier">
-              <option>Vijitha Yapa Distributors</option>
-              <option>Wasana Stationery Hub</option>
-              <option>Colombo Art Supplies</option>
-              <option>Metro Office Traders</option>
-            </select>
+            <select id="poSupplier"><option value="">Loading suppliers…</option></select>
           </div>
 
           <div class="field">
             <label>PO Reference</label>
-            <input placeholder="Auto-generated, e.g. PO-0143" disabled>
+            <input placeholder="Auto-generated on save" disabled>
           </div>
 
           <div class="field">
@@ -88,8 +83,8 @@
             <thead><tr><th>Product</th><th>Quantity</th><th>Unit Cost (Rs.)</th><th>Line Total</th><th></th></tr></thead>
             <tbody id="poItemsBody">
               <tr>
-                <td><input class="tag" style="border:1px solid var(--line); width:100%;" placeholder="e.g. Grade 10 Science Textbook"></td>
-                <td><input class="tag qty" style="border:1px solid var(--line); width:80px;" type="number" value="50" min="0"></td>
+                <td><input class="tag po-name" style="border:1px solid var(--line); width:100%;" placeholder="e.g. Grade 10 Science Textbook"></td>
+                <td><input class="tag qty" style="border:1px solid var(--line); width:80px;" type="number" value="50" min="1"></td>
                 <td><input class="tag cost" style="border:1px solid var(--line); width:100px;" type="number" value="420" min="0"></td>
                 <td class="cell-mono line-total">Rs. 21,000</td>
                 <td><button class="icon-btn remove-btn" type="button">Remove</button></td>
@@ -114,11 +109,12 @@
         <div class="form-grid">
           <div class="field full">
             <label>Order Notes</label>
-            <input placeholder="Delivery instructions, special terms, etc.">
+            <input id="poNotes" placeholder="Delivery instructions, special terms, etc.">
           </div>
         </div>
-        <div style="padding:0 22px 22px; display:flex; gap:10px;">
-          <button class="btn btn-primary" onclick="window.location.href='suppliers.html'">Save Purchase Order</button>
+        <div id="poMessage" style="padding:0 22px; color:var(--burgundy); font-size:12.5px; font-weight:600;"></div>
+        <div style="padding:14px 22px 22px; display:flex; gap:10px;">
+          <button class="btn btn-primary" id="saveBtn">Save Purchase Order</button>
           <button class="btn btn-ghost" onclick="window.location.href='suppliers.html'">Cancel</button>
         </div>
       </div>
@@ -128,22 +124,27 @@
 </div>
 <script src="script.js"></script>
 <script>
-  // --- Purchase order item rows: add, remove, live totals ---
   (function () {
     const itemsBody = document.getElementById('poItemsBody');
     const addItemBtn = document.getElementById('addItemBtn');
     const orderTotalEl = document.getElementById('orderTotalVal');
     const itemCountEl = document.getElementById('itemCountVal');
+    const supplierSelect = document.getElementById('poSupplier');
+    const saveBtn = document.getElementById('saveBtn');
+    const messageEl = document.getElementById('poMessage');
 
-    function formatRs(n) {
-      return 'Rs. ' + n.toLocaleString('en-LK', { maximumFractionDigits: 0 });
+    // Default the order date to today, matching how other Bookwise forms pre-fill dates.
+    document.getElementById('poOrderDate').value = new Date().toISOString().slice(0, 10);
+
+    function money(value) {
+      return 'Rs. ' + Number(value).toLocaleString('en-LK', { maximumFractionDigits: 0 });
     }
 
     function newRow() {
       const tr = document.createElement('tr');
       tr.innerHTML = [
-        '<td><input class="tag" style="border:1px solid var(--line); width:100%;" placeholder="Product name"></td>',
-        '<td><input class="tag qty" style="border:1px solid var(--line); width:80px;" type="number" value="0" min="0"></td>',
+        '<td><input class="tag po-name" style="border:1px solid var(--line); width:100%;" placeholder="Product name"></td>',
+        '<td><input class="tag qty" style="border:1px solid var(--line); width:80px;" type="number" value="0" min="1"></td>',
         '<td><input class="tag cost" style="border:1px solid var(--line); width:100px;" type="number" value="0" min="0"></td>',
         '<td class="cell-mono line-total">Rs. 0</td>',
         '<td><button class="icon-btn remove-btn" type="button">Remove</button></td>'
@@ -159,26 +160,24 @@
         const qty = parseFloat(row.querySelector('.qty').value) || 0;
         const cost = parseFloat(row.querySelector('.cost').value) || 0;
         const lineTotal = qty * cost;
-        row.querySelector('.line-total').textContent = formatRs(lineTotal);
+        row.querySelector('.line-total').textContent = money(lineTotal);
         total += lineTotal;
       });
 
-      orderTotalEl.textContent = formatRs(total);
+      orderTotalEl.textContent = money(total);
       itemCountEl.textContent = 'Across ' + rows.length + (rows.length === 1 ? ' item' : ' items');
     }
 
-    itemsBody.addEventListener('input', (e) => {
-      if (e.target.classList.contains('qty') || e.target.classList.contains('cost')) {
+    itemsBody.addEventListener('input', event => {
+      if (event.target.classList.contains('qty') || event.target.classList.contains('cost')) {
         recalc();
       }
     });
 
-    itemsBody.addEventListener('click', (e) => {
-      if (e.target.classList.contains('remove-btn')) {
-        if (itemsBody.querySelectorAll('tr').length > 1) {
-          e.target.closest('tr').remove();
-          recalc();
-        }
+    itemsBody.addEventListener('click', event => {
+      if (event.target.classList.contains('remove-btn') && itemsBody.querySelectorAll('tr').length > 1) {
+        event.target.closest('tr').remove();
+        recalc();
       }
     });
 
@@ -187,6 +186,69 @@
       recalc();
     });
 
+    async function loadSuppliers() {
+      const response = await fetch('api/index.php?resource=suppliers&status=active');
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        supplierSelect.innerHTML = '<option value="">Could not load suppliers</option>';
+        return;
+      }
+      supplierSelect.innerHTML = result.data
+        .map(supplier => `<option value="${supplier.id}">${supplier.name}</option>`)
+        .join('');
+    }
+
+    saveBtn.addEventListener('click', async () => {
+      messageEl.textContent = '';
+
+      const items = Array.from(itemsBody.querySelectorAll('tr')).map(row => ({
+        product_name: row.querySelector('.po-name').value.trim(),
+        quantity: parseInt(row.querySelector('.qty').value, 10),
+        unit_cost: parseFloat(row.querySelector('.cost').value)
+      }));
+
+      if (!supplierSelect.value) {
+        messageEl.textContent = 'Please select a supplier.';
+        return;
+      }
+      if (items.some(item => !item.product_name)) {
+        messageEl.textContent = 'Every item needs a product name.';
+        return;
+      }
+
+      const payload = {
+        supplier_id: supplierSelect.value,
+        order_date: document.getElementById('poOrderDate').value,
+        expected_date: document.getElementById('poExpectedDate').value || null,
+        notes: document.getElementById('poNotes').value.trim(),
+        items
+      };
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving…';
+
+      try {
+        const response = await fetch('api/index.php?resource=purchase_orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          messageEl.textContent = result.message || 'Something went wrong.';
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Save Purchase Order';
+          return;
+        }
+        window.location.href = 'suppliers.html';
+      } catch (error) {
+        messageEl.textContent = 'Could not connect to the database. Is XAMPP running?';
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Purchase Order';
+      }
+    });
+
+    loadSuppliers();
     recalc();
   })();
 </script>

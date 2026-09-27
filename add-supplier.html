@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<!-- Add-supplier form page: captures supplier details and stores the record through the backend API. -->
+<!-- Add/edit-supplier form page: captures supplier details and stores the record through the backend API. -->
 <div class="app">
   <!-- SIDEBAR -->
   <aside class="sidebar">
@@ -41,8 +41,8 @@
       <div class="topbar">
         <div>
           <div class="crumb">Module 03 · Suppliers · New Record</div>
-          <h1>Add New Supplier</h1>
-          <p class="lede">Enter supplier contact and business details to add them to the supplier directory.</p>
+          <h1 id="pageTitle">Add New Supplier</h1>
+          <p class="lede" id="pageLede">Enter supplier contact and business details to add them to the supplier directory.</p>
         </div>
         <button class="btn btn-ghost" onclick="window.location.href='suppliers.html'">Back to Suppliers</button>
       </div>
@@ -110,13 +110,13 @@
           <div class="field full">
             <label>Notes</label>
             <input id="notes" placeholder="Any additional notes about this supplier">
-          </form>
-        </div>
+          </div>
+        </form>
+      </div>
 
-        <div style="padding:0 22px 22px; display:flex; gap:10px;">
-          <button class="btn btn-primary" type="submit" form="supplierForm">Save Supplier</button>
-          <button class="btn btn-ghost" onclick="window.location.href='suppliers.html'">Cancel</button>
-        </div>
+      <div style="padding:0 22px 22px; display:flex; gap:10px;">
+        <button class="btn btn-primary" type="submit" id="saveBtn" form="supplierForm">Save Supplier</button>
+        <button class="btn btn-ghost" onclick="window.location.href='suppliers.html'">Cancel</button>
       </div>
 
     </section>
@@ -124,13 +124,41 @@
 </div>
 <script src="script.js"></script>
 <script>
-  document.getElementById('supplierForm').addEventListener('submit', async event => {
-    event.preventDefault();
+  (function () {
+    const params = new URLSearchParams(window.location.search);
+    const editId = params.get('id');
+    const saveBtn = document.getElementById('saveBtn');
     const value = id => document.getElementById(id).value;
-    const response = await fetch('api/index.php?resource=suppliers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    const setValue = (id, val) => { document.getElementById(id).value = val ?? ''; };
+
+    if (editId) {
+      document.getElementById('pageTitle').textContent = 'Edit Supplier';
+      document.getElementById('pageLede').textContent = "Update this supplier's contact and business details.";
+      saveBtn.textContent = 'Update Supplier';
+
+      fetch(`api/index.php?resource=suppliers&id=${editId}`)
+        .then(response => response.json())
+        .then(result => {
+          if (!result.success) {
+            alert(result.message);
+            return;
+          }
+          const s = result.data;
+          setValue('supplierName', s.name);
+          setValue('contactPerson', s.contact_person);
+          setValue('phone', s.phone);
+          setValue('email', s.email);
+          setValue('category', s.category);
+          setValue('address', s.address);
+          setValue('paymentTerms', s.payment_terms);
+          setValue('status', s.status);
+          setValue('notes', s.notes);
+        });
+    }
+
+    document.getElementById('supplierForm').addEventListener('submit', async event => {
+      event.preventDefault();
+      const payload = {
         name: value('supplierName'),
         contact_person: value('contactPerson'),
         phone: value('phone'),
@@ -140,16 +168,26 @@
         payment_terms: value('paymentTerms'),
         status: value('status'),
         notes: value('notes')
-      })
-    });
-    const result = await response.json();
-    if (!response.ok || !result.success) {
+      };
+
+      const endpoint = editId
+        ? `api/index.php?resource=suppliers&id=${editId}`
+        : 'api/index.php?resource=suppliers';
+
+      const response = await fetch(endpoint, {
+        method: editId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        alert(result.message);
+        return;
+      }
       alert(result.message);
-      return;
-    }
-    alert(result.message);
-    window.location.href = 'suppliers.html';
-  });
+      window.location.href = 'suppliers.html';
+    });
+  })();
 </script>
 </body>
 </html>
