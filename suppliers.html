@@ -134,8 +134,10 @@
         <td>${escapeHtml(supplier.category)}</td>
         <td><span class="badge ${supplier.status === 'Active' ? 'green' : 'grey'}">${supplier.status}</span></td>
         <td>
-          <button class="icon-btn" data-edit-id="${supplier.id}">Edit</button>
-          ${supplier.status === 'Active' ? `<button class="icon-btn" data-delete-id="${supplier.id}">Deactivate</button>` : ''}
+          <div style="display:flex; gap:6px; align-items:center;">
+            <button class="icon-btn" data-edit-id="${supplier.id}">Edit</button>
+            <button class="icon-btn danger" data-delete-id="${supplier.id}">Delete</button>
+          </div>
         </td>
       </tr>`).join('');
       countLabel.textContent = `${visible.length} ${visible.length === 1 ? 'supplier' : 'suppliers'} · loaded from database`;
@@ -217,11 +219,21 @@
         return;
       }
       const deleteButton = event.target.closest('[data-delete-id]');
-      if (!deleteButton || !confirm('Deactivate this supplier?')) return;
-      const response = await fetch(`api/index.php?resource=suppliers&id=${deleteButton.dataset.deleteId}`, { method: 'DELETE' });
-      const result = await response.json();
-      if (!response.ok || !result.success) return alert(result.message);
-      await loadSuppliers();
+      if (deleteButton) {
+        const supplierId = deleteButton.dataset.deleteId;
+        const supplier = suppliers.find(s => Number(s.id) === Number(supplierId));
+        const sName = supplier ? supplier.name : 'this supplier';
+        if (!confirm(`Are you sure you want to delete supplier "${sName}"?`)) return;
+        try {
+          const response = await fetch(`api/index.php?resource=suppliers&id=${supplierId}`, { method: 'DELETE' });
+          const result = await response.json();
+          if (!response.ok || !result.success) return alert(result.message || 'Could not delete supplier.');
+          alert(result.message || 'Supplier deleted successfully.');
+          await loadSuppliers();
+        } catch (err) {
+          alert('Error deleting supplier: ' + err.message);
+        }
+      }
     });
 
     poTableBody.addEventListener('click', async event => {

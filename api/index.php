@@ -161,14 +161,58 @@ try {
         respond(['success' => true, 'message' => 'Bookwise API is connected to MySQL.']);
     }
 
+    // Authentication endpoint: validates username and bcrypt password against the users table.
+    if ($resource === 'auth' && $method === 'POST') {
+        $username = trim((string) ($body['username'] ?? ''));
+        $password = (string) ($body['password'] ?? '');
+        if ($username === '' || $password === '') {
+            respond(['success' => false, 'message' => 'Username and password are required.'], 422);
+        }
+        $statement = $database->prepare(
+            'SELECT id, full_name, role, status, password_hash
+             FROM users
+             WHERE username = :username
+             LIMIT 1'
+        );
+        $statement->execute(['username' => $username]);
+        $user = $statement->fetch();
+        if (!$user) {
+            respond(['success' => false, 'message' => 'Invalid username or password.'], 401);
+        }
+        if ($user['status'] !== 'Active') {
+            respond(['success' => false, 'message' => 'Your account is inactive. Contact an administrator.'], 403);
+        }
+        if (!password_verify($password, $user['password_hash'])) {
+            respond(['success' => false, 'message' => 'Invalid username or password.'], 401);
+        }
+        respond([
+            'success'   => true,
+            'message'   => 'Login successful.',
+            'user'      => [
+                'id'        => (int) $user['id'],
+                'full_name' => $user['full_name'],
+                'role'      => $user['role'],
+            ],
+        ]);
+    }
+
     // Category lookup endpoint: returns the available inventory categories.
     if ($resource === 'categories' && $method === 'GET') {
         $categories = $database->query('SELECT id, name FROM categories ORDER BY name')->fetchAll();
         respond(['success' => true, 'data' => $categories]);
     }
 
-    // Supplier retrieval endpoint: fetches supplier records, optionally filtered by active status.
+    // Supplier retrieval endpoint: fetches supplier records, optionally filtered by active status, or single supplier if id given.
     if ($resource === 'suppliers' && $method === 'GET') {
+        if ($id) {
+            $statement = $database->prepare('SELECT * FROM suppliers WHERE id = :id');
+            $statement->execute(['id' => $id]);
+            $supplier = $statement->fetch();
+            if (!$supplier) {
+                respond(['success' => false, 'message' => 'Supplier was not found.'], 404);
+            }
+            respond(['success' => true, 'data' => $supplier]);
+        }
         $status = ($_GET['status'] ?? 'all') === 'active' ? 'Active' : null;
         $sql = 'SELECT id, name, contact_person, phone, email, address, category,
                        payment_terms, status, notes
@@ -195,14 +239,122 @@ try {
         respond(['success' => true, 'message' => 'Supplier added successfully.', 'id' => (int) $database->lastInsertId()], 201);
     }
 
-    // Supplier deactivation endpoint: marks a supplier as inactive instead of deleting the record.
+    // Supplier update endpoint: updates an existing supplier record.
+    if ($resource === 'suppliers' && $id && $method === 'PUT') {
+        $supplier = validateSupplier(requestBody());
+        $statement = $database->prepare(
+            'UPDATE suppliers
+             SET name = :name, contact_person = :contact_person, phone = :phone, email = :email,
+                 address = :address, category = :category, payment_terms = :payment_terms,
+                 status = :status, notes = :notes
+             WHERE id = :id'
+        );
+        $supplier['id'] = $id;
+        $statement->execute($supplier);
+        respond(['success' => true, 'message' => 'Supplier updated successfully.']);
+    }
+
+    // Supplier deletion endpoint: removes a supplier, or marks Inactive if referenced in orders/products.
     if ($resource === 'suppliers' && $id && $method === 'DELETE') {
-        $statement = $database->prepare("UPDATE suppliers SET status = 'Inactive' WHERE id = :id");
-        $statement->execute(['id' => $id]);
-        if ($statement->rowCount() === 0) {
-            respond(['success' => false, 'message' => 'Supplier was not found.'], 404);
+        try {
+            $statement = $database->prepare('DELETE FROM suppliers WHERE id = :id');
+            $statement->execute(['id' => $id]);
+            if ($statement->rowCount() === 0) {
+                respond(['success' => false, 'message' => 'Supplier was not found.'], 404);
+            }
+            respond(['success' => true, 'message' => 'Supplier deleted successfully.']);
+        } catch (PDOException $e) {
+            $statement = $database->prepare("UPDATE suppliers SET status = 'Inactive' WHERE id = :id");
+            $statement->execute(['id' => $id]);
+            respond(['success' => true, 'message' => 'Supplier is referenced by orders/products; marked as Inactive instead.']);
         }
-        respond(['success' => true, 'message' => 'Supplier deactivated successfully.']);
+    }
+
+    // Purchase order endpoints
+    if ($resource === 'purchase_orders' && $method === 'GET') {
+        try {
+            $statement = $database->query(
+                "SELECT po.id, po.po_ref, po.supplier_id, s.name AS supplier_name, po.order_date, po.expected_date,
+                        po.status, po.total_amount,
+                        (po.status = 'Pending' AND po.expected_date IS NOT NULL AND po.expected_date < CURRENT_DATE()) AS is_overdue
+                 FROM purchase_orders po
+                 LEFT JOIN suppliers s ON s.id = po.supplier_id
+                 ORDER BY po.order_date DESC"
+            );
+            respond(['success' => true, 'data' => $statement->fetchAll()]);
+        } catch (PDOException $e) {
+            respond(['success' => true, 'data' => []]);
+        }
+    }
+
+    if ($resource === 'purchase_orders' && $id && $method === 'PATCH') {
+        $status = in_array($body['status'] ?? '', ['Pending', 'Delivered', 'Cancelled'], true) ? $body['status'] : 'Delivered';
+        try {
+            $statement = $database->prepare('UPDATE purchase_orders SET status = :status WHERE id = :id');
+            $statement->execute(['status' => $status, 'id' => $id]);
+            respond(['success' => true, 'message' => "Purchase order marked as $status."]);
+        } catch (PDOException $e) {
+            respond(['success' => false, 'message' => 'Failed to update purchase order.'], 500);
+        }
+    }
+
+    if ($resource === 'purchase_orders' && $id && $method === 'DELETE') {
+        try {
+            $statement = $database->prepare("UPDATE purchase_orders SET status = 'Cancelled' WHERE id = :id");
+            $statement->execute(['id' => $id]);
+            respond(['success' => true, 'message' => 'Purchase order cancelled.']);
+        } catch (PDOException $e) {
+            respond(['success' => false, 'message' => 'Failed to cancel purchase order.'], 500);
+        }
+    }
+
+    if ($resource === 'purchase_orders' && $method === 'POST') {
+        try {
+            $supplierId = filter_var($body['supplier_id'] ?? null, FILTER_VALIDATE_INT);
+            $orderDate = trim((string) ($body['order_date'] ?? date('Y-m-d')));
+            $expectedDate = trim((string) ($body['expected_date'] ?? '')) ?: null;
+            $notes = trim((string) ($body['notes'] ?? '')) ?: null;
+            $items = $body['items'] ?? [];
+            if (!$supplierId || empty($items)) {
+                respond(['success' => false, 'message' => 'Supplier and at least one item are required.'], 422);
+            }
+            $total = 0;
+            foreach ($items as $item) {
+                $total += ((int)($item['quantity'] ?? 0)) * ((float)($item['unit_cost'] ?? 0));
+            }
+            $poRef = 'PO-' . str_pad((string)(mt_rand(1, 9999)), 4, '0', STR_PAD_LEFT);
+            $statement = $database->prepare(
+                'INSERT INTO purchase_orders (po_ref, supplier_id, order_date, expected_date, notes, total_amount, status)
+                 VALUES (:po_ref, :supplier_id, :order_date, :expected_date, :notes, :total_amount, "Pending")'
+            );
+            $statement->execute([
+                'po_ref' => $poRef,
+                'supplier_id' => $supplierId,
+                'order_date' => $orderDate,
+                'expected_date' => $expectedDate,
+                'notes' => $notes,
+                'total_amount' => $total,
+            ]);
+            $poId = (int) $database->lastInsertId();
+            $itemStmt = $database->prepare(
+                'INSERT INTO purchase_order_items (purchase_order_id, product_name, quantity, unit_cost, line_total)
+                 VALUES (:po_id, :name, :qty, :cost, :line_total)'
+            );
+            foreach ($items as $item) {
+                $qty = (int)($item['quantity'] ?? 1);
+                $cost = (float)($item['unit_cost'] ?? 0);
+                $itemStmt->execute([
+                    'po_id' => $poId,
+                    'name' => trim((string)$item['product_name']),
+                    'qty' => $qty,
+                    'cost' => $cost,
+                    'line_total' => $qty * $cost,
+                ]);
+            }
+            respond(['success' => true, 'message' => 'Purchase order created successfully.', 'po_ref' => $poRef], 201);
+        } catch (PDOException $e) {
+            respond(['success' => false, 'message' => 'Could not save purchase order: ' . $e->getMessage()], 500);
+        }
     }
 
     // Sales list endpoint: returns recent sales records with totals and basic summary data.
@@ -257,8 +409,21 @@ try {
         respond(['success' => true, 'message' => 'Sale completed successfully.', 'order_ref' => $orderRef], 201);
     }
 
-    // User list endpoint: retrieves staff and admin user records.
+    // User list endpoint: retrieves staff and admin user records, or single user if id given.
     if ($resource === 'users' && $method === 'GET') {
+        if ($id) {
+            $statement = $database->prepare(
+                'SELECT id, full_name, username, email, role, status
+                 FROM users
+                 WHERE id = :id'
+            );
+            $statement->execute(['id' => $id]);
+            $user = $statement->fetch();
+            if (!$user) {
+                respond(['success' => false, 'message' => 'User was not found.'], 404);
+            }
+            respond(['success' => true, 'data' => $user]);
+        }
         $statement = $database->query(
             'SELECT id, full_name, email, role, status
              FROM users
@@ -269,24 +434,57 @@ try {
 
     // User creation endpoint: validates the user record before adding it to the system.
     if ($resource === 'users' && $method === 'POST') {
-        $name = trim((string) ($body['full_name'] ?? ''));
-        $email = trim((string) ($body['email'] ?? ''));
-        $role = in_array($body['role'] ?? '', ['Admin', 'Cashier', 'Staff'], true) ? $body['role'] : 'Staff';
+        $name     = trim((string) ($body['full_name'] ?? ''));
+        $username = trim((string) ($body['username'] ?? ''));
+        $email    = trim((string) ($body['email'] ?? ''));
+        $password = (string) ($body['password'] ?? '');
+        $role     = in_array($body['role'] ?? '', ['Admin', 'Cashier', 'Staff'], true) ? $body['role'] : 'Staff';
+        $status   = ($body['status'] ?? 'Active') === 'Inactive' ? 'Inactive' : 'Active';
+        if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            respond(['success' => false, 'message' => 'A valid name and email are required.'], 422);
+        }
+        // Derive a username from the first name segment if not provided.
+        if ($username === '') {
+            $username = strtolower(preg_replace('/\s+/', '', explode(' ', $name)[0]));
+        }
+        $hash = $password !== '' ? password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]) : '';
+        $statement = $database->prepare(
+            'INSERT INTO users (full_name, username, email, password_hash, role, status)
+             VALUES (:full_name, :username, :email, :password_hash, :role, :status)'
+        );
+        $statement->execute([
+            'full_name'     => $name,
+            'username'      => $username,
+            'email'         => $email,
+            'password_hash' => $hash,
+            'role'          => $role,
+            'status'        => $status,
+        ]);
+        respond(['success' => true, 'message' => 'User added successfully.', 'id' => (int) $database->lastInsertId()], 201);
+    }
+
+    // User update endpoint: modifies an existing user record.
+    if ($resource === 'users' && $id && $method === 'PUT') {
+        $name   = trim((string) ($body['full_name'] ?? ''));
+        $email  = trim((string) ($body['email'] ?? ''));
+        $role   = in_array($body['role'] ?? '', ['Admin', 'Cashier', 'Staff'], true) ? $body['role'] : 'Staff';
         $status = ($body['status'] ?? 'Active') === 'Inactive' ? 'Inactive' : 'Active';
         if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             respond(['success' => false, 'message' => 'A valid name and email are required.'], 422);
         }
         $statement = $database->prepare(
-            'INSERT INTO users (full_name, email, role, status)
-             VALUES (:full_name, :email, :role, :status)'
+            'UPDATE users
+             SET full_name = :full_name, email = :email, role = :role, status = :status
+             WHERE id = :id'
         );
         $statement->execute([
+            'id'        => $id,
             'full_name' => $name,
-            'email' => $email,
-            'role' => $role,
-            'status' => $status,
+            'email'     => $email,
+            'role'      => $role,
+            'status'    => $status,
         ]);
-        respond(['success' => true, 'message' => 'User added successfully.', 'id' => (int) $database->lastInsertId()], 201);
+        respond(['success' => true, 'message' => 'User updated successfully.']);
     }
 
     // User status update endpoint: toggles the active/inactive status for an individual user.
@@ -298,6 +496,16 @@ try {
             respond(['success' => false, 'message' => 'User was not found or no changes were made.'], 404);
         }
         respond(['success' => true, 'message' => 'User status updated successfully.']);
+    }
+
+    // User deletion endpoint: permanently deletes a user.
+    if ($resource === 'users' && $id && $method === 'DELETE') {
+        $statement = $database->prepare('DELETE FROM users WHERE id = :id');
+        $statement->execute(['id' => $id]);
+        if ($statement->rowCount() === 0) {
+            respond(['success' => false, 'message' => 'User was not found.'], 404);
+        }
+        respond(['success' => true, 'message' => 'User deleted successfully.']);
     }
 
     // Employee lookup endpoint: returns all employee records sorted by name.
@@ -356,11 +564,14 @@ try {
         respond(['success' => true, 'message' => 'Employee updated successfully.']);
     }
 
-    // Employee deactivation endpoint: marks the employee as inactive instead of physically deleting them.
+    // Employee deletion endpoint: removes an employee record.
     if ($resource === 'employees' && $id && $method === 'DELETE') {
-        $statement = $database->prepare("UPDATE employees SET status = 'inactive' WHERE id = :id");
+        $statement = $database->prepare('DELETE FROM employees WHERE id = :id');
         $statement->execute(['id' => $id]);
-        respond(['success' => true, 'message' => 'Employee deactivated successfully.']);
+        if ($statement->rowCount() === 0) {
+            respond(['success' => false, 'message' => 'Employee was not found.'], 404);
+        }
+        respond(['success' => true, 'message' => 'Employee deleted successfully.']);
     }
 
     // Financial summary endpoint: calculates revenue, expenses, profit, and recent transaction history for the month.
@@ -444,8 +655,26 @@ try {
         respond(['success' => true, 'message' => 'Expense deleted successfully.']);
     }
 
-    // Product listing endpoint: returns active products with search and category filtering options.
+    // Product listing endpoint: returns active products with search/category filters, or single product by id.
     if ($resource === 'products' && $method === 'GET') {
+        if ($id) {
+            $statement = $database->prepare(
+                'SELECT p.id, p.sku, p.name, p.author, p.isbn_barcode, p.unit_price,
+                        p.stock_quantity, p.reorder_level, p.status,
+                        p.category_id, c.name AS category_name,
+                        p.primary_supplier_id, s.name AS supplier_name
+                 FROM products p
+                 INNER JOIN categories c ON c.id = p.category_id
+                 LEFT JOIN suppliers s ON s.id = p.primary_supplier_id
+                 WHERE p.id = :id'
+            );
+            $statement->execute(['id' => $id]);
+            $product = $statement->fetch();
+            if (!$product) {
+                respond(['success' => false, 'message' => 'Product was not found.'], 404);
+            }
+            respond(['success' => true, 'data' => $product]);
+        }
         $search = trim((string) ($_GET['search'] ?? ''));
         $category = trim((string) ($_GET['category'] ?? ''));
         $sql = 'SELECT p.id, p.sku, p.name, p.author, p.isbn_barcode, p.unit_price,
@@ -495,19 +724,29 @@ try {
         $product['id'] = $id;
         $statement->execute($product);
         if ($statement->rowCount() === 0) {
-            respond(['success' => false, 'message' => 'Product was not found or no changes were made.'], 404);
+            $exists = $database->prepare('SELECT 1 FROM products WHERE id = :id');
+            $exists->execute(['id' => $id]);
+            if (!$exists->fetchColumn()) {
+                respond(['success' => false, 'message' => 'Product was not found.'], 404);
+            }
         }
         respond(['success' => true, 'message' => 'Product updated successfully.']);
     }
 
-    // Product deactivation endpoint: disables the product while keeping its record for audit/history.
+    // Product deletion endpoint: removes product, or marks Inactive if referenced in orders.
     if ($resource === 'products' && $id && $method === 'DELETE') {
-        $statement = $database->prepare("UPDATE products SET status = 'Inactive' WHERE id = :id");
-        $statement->execute(['id' => $id]);
-        if ($statement->rowCount() === 0) {
-            respond(['success' => false, 'message' => 'Product was not found.'], 404);
+        try {
+            $statement = $database->prepare('DELETE FROM products WHERE id = :id');
+            $statement->execute(['id' => $id]);
+            if ($statement->rowCount() === 0) {
+                respond(['success' => false, 'message' => 'Product was not found.'], 404);
+            }
+            respond(['success' => true, 'message' => 'Product deleted successfully.']);
+        } catch (PDOException $e) {
+            $statement = $database->prepare("UPDATE products SET status = 'Inactive' WHERE id = :id");
+            $statement->execute(['id' => $id]);
+            respond(['success' => true, 'message' => 'Product is referenced by sales records; marked as Inactive instead.']);
         }
-        respond(['success' => true, 'message' => 'Product deleted successfully.']);
     }
 
     // Fallback response for unknown endpoints.

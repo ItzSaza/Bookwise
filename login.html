@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Sign in to the Bookwise Store Console for Minre Book Shop. Manage inventory, orders, financials, and staff.">
+  <title>BOOKWISE — Sign In</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: var(--cream);
+      overflow-x: hidden;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Login page: standalone authentication screen before entering the main console. -->
+<div class="login-container">
+
+  <!-- Left Side: Hero / Brand Panel -->
+  <aside class="login-hero-panel" aria-label="Bookwise Overview">
+    <div class="hero-top-brand">
+      <div class="brand">
+        <div class="brand-mark">B</div>
+        <div class="brand-name">Bookwise</div>
+      </div>
+      <div class="brand-sub">Minre Book Shop · Console</div>
+    </div>
+
+    <div class="hero-center-content">
+      <div class="hero-kicker">Unified Store Operations</div>
+      <h2>Welcome to your central bookstore workspace.</h2>
+      <p>Log in with your assigned staff or administrative credentials to access catalog management, point-of-sale terminals, financial reports, and shift rosters.</p>
+
+      <div class="feature-tags">
+        <span class="feature-tag"><span>01</span> User Accounts</span>
+        <span class="feature-tag"><span>02</span> Inventory &amp; Stock</span>
+        <span class="feature-tag"><span>03</span> Suppliers</span>
+        <span class="feature-tag"><span>04</span> Orders &amp; POS</span>
+        <span class="feature-tag"><span>05</span> Financials</span>
+        <span class="feature-tag"><span>06</span> Services &amp; Staff</span>
+      </div>
+    </div>
+
+    <div class="hero-foot">
+      <div>Bookwise Operating Suite</div>
+      <span>v2.4 · Secure Console</span>
+    </div>
+  </aside>
+
+  <!-- Right Side: Login Card -->
+  <main class="login-form-panel">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="crumb">Authentication · Access Portal</div>
+        <h1>Sign In</h1>
+        <p class="lede">Enter your username and password to proceed to the console dashboard.</p>
+      </div>
+
+      <div id="loginFeedback" class="login-feedback" role="alert" aria-live="polite"></div>
+
+      <form class="login-form" id="loginForm" autocomplete="on">
+        <div class="field">
+          <label for="usernameInput">Username</label>
+          <input
+            type="text"
+            id="usernameInput"
+            name="username"
+            required
+            placeholder="Your username"
+            autocomplete="username"
+            autofocus
+          >
+        </div>
+
+        <div class="field">
+          <label for="passwordInput">Password</label>
+          <div class="password-input-wrap">
+            <input
+              type="password"
+              id="passwordInput"
+              name="password"
+              required
+              placeholder="••••••••"
+              autocomplete="current-password"
+            >
+            <button
+              type="button"
+              class="pw-toggle-btn"
+              id="pwToggleBtn"
+              aria-label="Show password"
+              title="Show password"
+            >
+              <svg id="eyeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="form-options">
+          <label class="remember-me">
+            <input type="checkbox" id="rememberMe">
+            <span>Remember session</span>
+          </label>
+          <a href="#" class="forgot-link" id="forgotPwLink">Forgot password?</a>
+        </div>
+
+        <button type="submit" class="btn btn-primary login-submit-btn" id="submitBtn">
+          <span id="btnText">Sign In to Console</span>
+        </button>
+      </form>
+    </div>
+  </main>
+</div>
+
+<script>
+  (function () {
+    const form         = document.getElementById('loginForm');
+    const usernameInput = document.getElementById('usernameInput');
+    const passwordInput = document.getElementById('passwordInput');
+    const submitBtn    = document.getElementById('submitBtn');
+    const btnText      = document.getElementById('btnText');
+    const feedback     = document.getElementById('loginFeedback');
+    const pwToggleBtn  = document.getElementById('pwToggleBtn');
+    const forgotPwLink = document.getElementById('forgotPwLink');
+
+    // Show/Hide Password Toggle
+    pwToggleBtn.addEventListener('click', function () {
+      const isPassword = passwordInput.getAttribute('type') === 'password';
+      passwordInput.setAttribute('type', isPassword ? 'text' : 'password');
+      pwToggleBtn.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+      pwToggleBtn.setAttribute('title',      isPassword ? 'Hide password' : 'Show password');
+
+      pwToggleBtn.innerHTML = isPassword
+        ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+             <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+             <line x1="1" y1="1" x2="23" y2="23"></line>
+           </svg>`
+        : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+             <circle cx="12" cy="12" r="3"></circle>
+           </svg>`;
+    });
+
+    // Forgot password helper
+    forgotPwLink.addEventListener('click', function (e) {
+      e.preventDefault();
+      showFeedback('Please contact your system administrator or branch manager to reset your credentials.', 'error');
+    });
+
+    function showFeedback(message, type) {
+      feedback.textContent = message;
+      feedback.className = 'login-feedback ' + type;
+    }
+
+    function clearFeedback() {
+      feedback.textContent = '';
+      feedback.className = 'login-feedback';
+    }
+
+    function resetBtn() {
+      submitBtn.disabled = false;
+      btnText.textContent = 'Sign In to Console';
+    }
+
+    // Form submission — POST to the auth API endpoint
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      clearFeedback();
+
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value;
+
+      if (!username || !password) {
+        showFeedback('Please provide both username and password.', 'error');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      btnText.textContent = 'Verifying credentials…';
+
+      try {
+        const response = await fetch('api/index.php?resource=auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          showFeedback('Login successful. Redirecting…', 'success');
+          setTimeout(function () {
+            window.location.href = 'index.html';
+          }, 600);
+        } else {
+          showFeedback(result.message || 'Invalid username or password.', 'error');
+          resetBtn();
+        }
+      } catch (err) {
+        showFeedback('Could not reach the server. Please try again.', 'error');
+        resetBtn();
+      }
+    });
+  })();
+</script>
+</body>
+</html>

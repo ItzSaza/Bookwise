@@ -97,7 +97,12 @@
           <td>${product.stock_quantity}</td>
           <td>${product.reorder_level}</td>
           <td><span class="badge ${low ? 'red' : 'green'}">${low ? 'Low Stock' : 'Healthy'}</span></td>
-          <td><button class="icon-btn" data-delete-id="${product.id}">Delete</button></td>
+          <td>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <button class="icon-btn" data-edit-id="${product.id}">Edit</button>
+              <button class="icon-btn danger" data-delete-id="${product.id}">Delete</button>
+            </div>
+          </td>
         </tr>`;
       }).join('') || '<tr><td colspan="7">No products match this view.</td></tr>';
       countLabel.textContent = `${visible.length} items · loaded from database`;
@@ -126,11 +131,17 @@
     });
     searchInput.addEventListener('input', render);
     tableBody.addEventListener('click', async event => {
-      const button = event.target.closest('[data-delete-id]');
-      if (!button || !confirm('Delete this product?')) return;
-      const response = await fetch(`api/index.php?resource=products&id=${button.dataset.deleteId}`, { method: 'DELETE' });
+      const editButton = event.target.closest('[data-edit-id]');
+      if (editButton) {
+        window.location.href = `add-product.html?id=${editButton.dataset.editId}`;
+        return;
+      }
+      const deleteButton = event.target.closest('[data-delete-id]');
+      if (!deleteButton || !confirm('Are you sure you want to delete this product?')) return;
+      const response = await fetch(`api/index.php?resource=products&id=${deleteButton.dataset.deleteId}`, { method: 'DELETE' });
       const result = await response.json();
       if (!response.ok || !result.success) return alert(result.message);
+      alert(result.message);
       await loadProducts();
     });
 

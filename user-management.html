@@ -137,13 +137,13 @@
       </div>
     </section>
 
-    <!-- ADD USER FORM -->
+    <!-- ADD / EDIT USER FORM -->
     <section class="panel user-form-panel" id="userFormPanel">
 
       <div class="panel-head">
         <div>
-          <h3>Add New User</h3>
-          <div class="sub">
+          <h3 id="userFormTitle">Add New User</h3>
+          <div class="sub" id="userFormSub">
             Create a new system user and assign an appropriate role
           </div>
         </div>
@@ -153,12 +153,12 @@
 
         <div class="field">
           <label>Full Name</label>
-          <input type="text" id="newUserName" placeholder="Enter full name">
+          <input type="text" id="newUserName" placeholder="Enter full name" required>
         </div>
 
         <div class="field">
           <label>Email</label>
-          <input type="email" id="newUserEmail" placeholder="Enter email">
+          <input type="email" id="newUserEmail" placeholder="Enter email" required>
         </div>
 
         <div class="field">
@@ -203,8 +203,11 @@
   (async function () {
     const tableBody = document.getElementById('usersTableBody');
     const formPanel = document.getElementById('userFormPanel');
-    const users = [];
+    const formTitle = document.getElementById('userFormTitle');
+    const formSub = document.getElementById('userFormSub');
+    const saveUserBtn = document.getElementById('saveUserBtn');
     let allUsers = [];
+    let editingUserId = null;
 
     function escapeHtml(value) {
       return String(value).replace(/[&<>"']/g, character => ({
@@ -226,8 +229,14 @@
         <td><span class="badge ${user.role === 'Admin' ? 'navy' : user.role === 'Cashier' ? 'red' : 'gold'}">${user.role}</span></td>
         <td class="cell-mono">${escapeHtml(user.email)}</td>
         <td><span class="badge ${user.status === 'Active' ? 'green' : 'grey'}">${user.status}</span></td>
-        <td><button class="icon-btn" data-user-id="${user.id}" data-next-status="${user.status === 'Active' ? 'Inactive' : 'Active'}">${user.status === 'Active' ? 'Deactivate' : 'Activate'}</button></td>
-      </tr>`).join('');
+        <td>
+          <div style="display:flex; gap:6px; flex-wrap:nowrap; align-items:center;">
+            <button class="icon-btn" data-edit-id="${user.id}">Edit</button>
+            <button class="icon-btn" data-user-id="${user.id}" data-next-status="${user.status === 'Active' ? 'Inactive' : 'Active'}">${user.status === 'Active' ? 'Deactivate' : 'Activate'}</button>
+            <button class="icon-btn danger" data-delete-id="${user.id}">Delete</button>
+          </div>
+        </td>
+      </tr>`).join('') || '<tr><td colspan="5">No users match this filter.</td></tr>';
       document.getElementById('activeUserCount').textContent = allUsers.filter(user => user.status === 'Active').length;
       document.getElementById('inactiveUserCount').textContent = allUsers.filter(user => user.status === 'Inactive').length;
       document.getElementById('adminCount').textContent = allUsers.filter(user => user.role === 'Admin' && user.status === 'Active').length;
@@ -242,43 +251,122 @@
       render();
     }
 
-    document.getElementById('addUserBtn').addEventListener('click', () => {
-      formPanel.classList.add('show');
-      formPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-    document.getElementById('cancelUserBtn').addEventListener('click', () => formPanel.classList.remove('show'));
-    ['userSearch', 'roleFilter', 'statusFilter'].forEach(id => document.getElementById(id).addEventListener('input', render));
-    tableBody.addEventListener('click', async event => {
-      const button = event.target.closest('[data-user-id]');
-      if (!button) return;
-      const response = await fetch(`api/index.php?resource=users&id=${button.dataset.userId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: button.dataset.nextStatus })
-      });
-      const result = await response.json();
-      if (!response.ok || !result.success) return alert(result.message);
-      await loadUsers();
-    });
-    document.getElementById('saveUserBtn').addEventListener('click', async () => {
-      const response = await fetch('api/index.php?resource=users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          full_name: document.getElementById('newUserName').value,
-          email: document.getElementById('newUserEmail').value,
-          role: document.getElementById('newUserRole').value,
-          status: document.getElementById('newUserStatus').value
-        })
-      });
-      const result = await response.json();
-      if (!response.ok || !result.success) return alert(result.message);
-      formPanel.classList.remove('show');
+    function openAddMode() {
+      editingUserId = null;
+      formTitle.textContent = 'Add New User';
+      formSub.textContent = 'Create a new system user and assign an appropriate role';
+      saveUserBtn.textContent = 'Save User';
       document.getElementById('newUserName').value = '';
       document.getElementById('newUserEmail').value = '';
-      await loadUsers();
-      alert(result.message);
+      document.getElementById('newUserRole').value = 'Staff';
+      document.getElementById('newUserStatus').value = 'Active';
+      formPanel.classList.add('show');
+      formPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function openEditMode(userId) {
+      const user = allUsers.find(u => Number(u.id) === Number(userId));
+      if (!user) return;
+      editingUserId = user.id;
+      formTitle.textContent = `Edit User — ${user.full_name}`;
+      formSub.textContent = 'Update account details, role permissions, and status';
+      saveUserBtn.textContent = 'Update User';
+      document.getElementById('newUserName').value = user.full_name;
+      document.getElementById('newUserEmail').value = user.email;
+      document.getElementById('newUserRole').value = user.role;
+      document.getElementById('newUserStatus').value = user.status;
+      formPanel.classList.add('show');
+      formPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function closeForm() {
+      editingUserId = null;
+      formPanel.classList.remove('show');
+    }
+
+    document.getElementById('addUserBtn').addEventListener('click', openAddMode);
+    document.getElementById('cancelUserBtn').addEventListener('click', closeForm);
+    ['userSearch', 'roleFilter', 'statusFilter'].forEach(id => document.getElementById(id).addEventListener('input', render));
+
+    tableBody.addEventListener('click', async event => {
+      // Edit User
+      const editButton = event.target.closest('[data-edit-id]');
+      if (editButton) {
+        openEditMode(editButton.dataset.editId);
+        return;
+      }
+
+      // Delete User
+      const deleteButton = event.target.closest('[data-delete-id]');
+      if (deleteButton) {
+        const userId = deleteButton.dataset.deleteId;
+        const user = allUsers.find(u => Number(u.id) === Number(userId));
+        const userName = user ? user.full_name : 'this user';
+        if (!confirm(`Are you sure you want to permanently delete "${userName}"?`)) return;
+
+        try {
+          const response = await fetch(`api/index.php?resource=users&id=${userId}`, { method: 'DELETE' });
+          const result = await response.json();
+          if (!response.ok || !result.success) return alert(result.message || 'Could not delete user.');
+          if (editingUserId && Number(editingUserId) === Number(userId)) {
+            closeForm();
+          }
+          await loadUsers();
+          alert(result.message || 'User deleted successfully.');
+        } catch (err) {
+          alert('Failed to delete user: ' + err.message);
+        }
+        return;
+      }
+
+      // Toggle Status
+      const statusButton = event.target.closest('[data-user-id]');
+      if (statusButton) {
+        const response = await fetch(`api/index.php?resource=users&id=${statusButton.dataset.userId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: statusButton.dataset.nextStatus })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) return alert(result.message);
+        await loadUsers();
+      }
     });
+
+    saveUserBtn.addEventListener('click', async () => {
+      const name = document.getElementById('newUserName').value.trim();
+      const email = document.getElementById('newUserEmail').value.trim();
+      const role = document.getElementById('newUserRole').value;
+      const status = document.getElementById('newUserStatus').value;
+
+      if (!name || !email) {
+        alert('Please fill in both name and email.');
+        return;
+      }
+
+      const payload = { full_name: name, email, role, status };
+      const endpoint = editingUserId
+        ? `api/index.php?resource=users&id=${editingUserId}`
+        : 'api/index.php?resource=users';
+      const method = editingUserId ? 'PUT' : 'POST';
+
+      try {
+        const response = await fetch(endpoint, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) return alert(result.message || 'Failed to save user.');
+
+        closeForm();
+        await loadUsers();
+        alert(result.message || (editingUserId ? 'User updated successfully.' : 'User added successfully.'));
+      } catch (err) {
+        alert('Error saving user: ' + err.message);
+      }
+    });
+
     try {
       await loadUsers();
     } catch (error) {

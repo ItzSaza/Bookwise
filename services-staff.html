@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -525,8 +525,10 @@
   .tab.active{background:var(--navy);border-color:var(--navy);}
   table th{color:var(--muted);border-color:var(--line);}
   table td{border-color:#f0ebdd;}
-  .edit-btn{background:var(--paper);border-color:var(--line);color:var(--muted);}
+  .edit-btn{background:var(--paper);border-color:var(--line);color:var(--muted);padding:5px 9px;border-radius:6px;border:1px solid var(--line);cursor:pointer;font-size:12px;transition:all .15s ease;}
   .edit-btn:hover{border-color:var(--navy);color:var(--navy);}
+  .edit-btn.danger-btn{color:var(--burgundy);border-color:#f5dedb;}
+  .edit-btn.danger-btn:hover{border-color:var(--burgundy);color:var(--burgundy-deep);background:#fdf2f0;}
   .field input,.field select,.search-box{border-color:var(--line);background:#fcfaf4;color:var(--ink);}
   .status.active{background:#e8f0e6;color:var(--sage);}
   .status.leave{background:#fbf1d6;color:#9a7b12;}
@@ -890,11 +892,21 @@
         tr.appendChild(tdStatus);
 
         var tdEdit = document.createElement("td");
+        tdEdit.style.whiteSpace = "nowrap";
+
         var editBtn = document.createElement("button");
         editBtn.className = "edit-btn";
         editBtn.textContent = "Edit";
         editBtn.addEventListener("click", function(){ openEditModal(emp.id); });
         tdEdit.appendChild(editBtn);
+
+        var delBtn = document.createElement("button");
+        delBtn.className = "edit-btn danger-btn";
+        delBtn.style.marginLeft = "6px";
+        delBtn.textContent = "Delete";
+        delBtn.addEventListener("click", function(){ deleteEmployee(emp.id, emp.name); });
+        tdEdit.appendChild(delBtn);
+
         tr.appendChild(tdEdit);
 
         tbody.appendChild(tr);
@@ -1046,18 +1058,26 @@
       }).catch(function(error){ showToast(error.message); });
   });
 
-  // Deactivates the selected employee through the API and removes their scheduled shifts from the current page state.
-  deleteBtn.addEventListener("click", function(){
-    if (editingId === null) return;
-    fetch("api/index.php?resource=employees&id=" + editingId, { method: "DELETE" })
+  // Deletes an employee via the API and updates shifts and directory.
+  function deleteEmployee(id, name){
+    if (!confirm("Are you sure you want to delete employee \"" + name + "\"?")) return;
+    fetch("api/index.php?resource=employees&id=" + id, { method: "DELETE" })
       .then(function(response){ return response.json().then(function(result){ return { response: response, result: result }; }); })
       .then(function(data){
-        if (!data.response.ok || !data.result.success) throw new Error(data.result.message || "Could not deactivate employee.");
-        shifts = shifts.filter(function(s){ return s.employeeId !== editingId; });
+        if (!data.response.ok || !data.result.success) throw new Error(data.result.message || "Could not delete employee.");
+        shifts = shifts.filter(function(s){ return s.employeeId !== id; });
         showToast(data.result.message);
-        closeEmployeeModal();
+        if (editingId === id) closeEmployeeModal();
         return loadEmployees();
       }).catch(function(error){ showToast(error.message); });
+  }
+
+  // Deletes the selected employee through the modal.
+  deleteBtn.addEventListener("click", function(){
+    if (editingId === null) return;
+    var emp = employees.find(function(e){ return e.id === editingId; });
+    var empName = emp ? emp.name : "this employee";
+    deleteEmployee(editingId, empName);
   });
 
   // Opens the shift form only when at least one employee exists in the directory.

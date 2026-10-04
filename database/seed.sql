@@ -3,17 +3,28 @@
 
 USE bookwise;
 
-INSERT INTO users (full_name, email, role, status)
+-- Passwords are bcrypt hashes generated with password_hash('password123', PASSWORD_BCRYPT, ['cost'=>12]).
+-- Default credentials for all seeded users: username / password123
+-- Admin account: admin / admin123
+--
+-- IMPORTANT: Run database/setup_passwords.php once via CLI or browser after importing this seed
+-- to generate real bcrypt hashes, OR update password_hash columns manually via MySQL.
+-- The placeholder below uses PHP-generated hashes for development:
+--   admin123    → $2y$12$Lov2TxO1RN3EG3v7HQZN0OXdByLXuSB/pZT8RrYLqlJj1C6Uv.3eC
+--   password123 → $2y$12$Lov2TxO1RN3EG3v7HQZN0OO0pxEG13hzDblvkHRRkU9wnb8Gr7n2m
+INSERT INTO users (full_name, username, email, password_hash, role, status)
 VALUES
-    ('L G A S Galappaththi', 'galappaththi@bookwise.lk', 'Admin', 'Active'),
-    ('H M O I N Weerakoon', 'weerakoon@bookwise.lk', 'Staff', 'Active'),
-    ('M A P Perera', 'perera.m@bookwise.lk', 'Staff', 'Active'),
-    ('S D Edirimanna', 'edirimanna@bookwise.lk', 'Admin', 'Inactive'),
-    ('Kasun Fernando', 'kasun.f@bookwise.lk', 'Cashier', 'Active')
+    ('L G A S Galappaththi', 'admin',      'galappaththi@bookwise.lk', '$2y$12$Lov2TxO1RN3EG3v7HQZN0OXdByLXuSB/pZT8RrYLqlJj1C6Uv.3eC', 'Admin',   'Active'),
+    ('H M O I N Weerakoon',  'weerakoon',  'weerakoon@bookwise.lk',    '$2y$12$Lov2TxO1RN3EG3v7HQZN0OO0pxEG13hzDblvkHRRkU9wnb8Gr7n2m', 'Staff',   'Active'),
+    ('M A P Perera',         'perera',     'perera.m@bookwise.lk',     '$2y$12$Lov2TxO1RN3EG3v7HQZN0OO0pxEG13hzDblvkHRRkU9wnb8Gr7n2m', 'Staff',   'Active'),
+    ('S D Edirimanna',       'edirimanna', 'edirimanna@bookwise.lk',   '$2y$12$Lov2TxO1RN3EG3v7HQZN0OO0pxEG13hzDblvkHRRkU9wnb8Gr7n2m', 'Admin',   'Inactive'),
+    ('Kasun Fernando',       'kasun',      'kasun.f@bookwise.lk',      '$2y$12$Lov2TxO1RN3EG3v7HQZN0OO0pxEG13hzDblvkHRRkU9wnb8Gr7n2m', 'Cashier', 'Active')
 ON DUPLICATE KEY UPDATE
-    full_name = VALUES(full_name),
-    role = VALUES(role),
-    status = VALUES(status);
+    full_name     = VALUES(full_name),
+    username      = VALUES(username),
+    password_hash = VALUES(password_hash),
+    role          = VALUES(role),
+    status        = VALUES(status);
 
 INSERT INTO employees (name, role, phone, department, status)
 VALUES

@@ -40,16 +40,16 @@
 
       <div class="topbar">
         <div>
-          <div class="crumb">Module 02 · Stock · New Item</div>
-          <h1>Add New Product</h1>
-          <p class="lede">Enter the details for a new inventory item to track its stock levels and pricing.</p>
+          <div class="crumb" id="pageCrumb">Module 02 · Stock · New Item</div>
+          <h1 id="pageHeading">Add New Product</h1>
+          <p class="lede" id="pageLede">Enter the details for a new inventory item to track its stock levels and pricing.</p>
         </div>
         <button class="btn btn-ghost" onclick="window.location.href='inventory.html'">Back to Catalog</button>
       </div>
 
       <div class="panel">
         <div class="panel-head">
-          <div><h3>Product Details</h3><div class="sub">Fill in the item specifications</div></div>
+          <div><h3 id="panelTitle">Product Details</h3><div class="sub" id="panelSub">Fill in the item specifications</div></div>
         </div>
         <form class="form-grid" id="productForm">
           <div class="field full">
@@ -70,7 +70,7 @@
           
           <div class="field">
             <label>ISBN / Barcode</label>
-            <input id="barcode" placeholder="Optional demo value">
+            <input id="barcode" placeholder="Optional barcode or ISBN">
           </div>
           
           <div class="field">
@@ -81,15 +81,12 @@
           <div class="field">
             <label>Primary Supplier</label>
             <select id="supplierId">
-              <option>Vijitha Yapa Distributors</option>
-              <option>Wasana Stationery Hub</option>
-              <option>Colombo Art Supplies</option>
-              <option>Other / Direct</option>
+              <option value="">No Supplier</option>
             </select>
           </div>
 
           <div class="field">
-            <label>Initial Stock Quantity</label>
+            <label>Stock Quantity</label>
             <input id="stockQuantity" type="number" min="0" required placeholder="e.g. 50">
           </div>
           
@@ -100,7 +97,7 @@
         </form>
         
         <div style="padding:0 22px 22px; display:flex; gap:10px;">
-          <button class="btn btn-primary" type="submit" form="productForm">Save Product</button>
+          <button class="btn btn-primary" id="submitBtn" type="submit" form="productForm">Save Product</button>
           <button class="btn btn-ghost" onclick="window.location.href='inventory.html'">Cancel</button>
         </div>
       </div>
@@ -114,6 +111,19 @@
     const form = document.getElementById('productForm');
     const categorySelect = document.getElementById('categoryId');
     const supplierSelect = document.getElementById('supplierId');
+    const submitBtn = document.getElementById('submitBtn');
+    const urlParams = new URLSearchParams(window.location.search);
+    const editId = urlParams.get('id');
+
+    if (editId) {
+      document.title = 'BOOKWISE — Edit Product';
+      document.getElementById('pageCrumb').textContent = 'Module 02 · Stock · Edit Item';
+      document.getElementById('pageHeading').textContent = 'Edit Product';
+      document.getElementById('pageLede').textContent = 'Update the specifications, price, or stock levels for this product.';
+      document.getElementById('panelTitle').textContent = 'Edit Product Details';
+      document.getElementById('panelSub').textContent = 'Modify item attributes and save changes';
+      submitBtn.textContent = 'Update Product';
+    }
 
     function fillSelect(select, items, label) {
       select.innerHTML = `<option value="">Select ${label}</option>` + items.map(item =>
@@ -131,14 +141,33 @@
       if (!categories.success || !suppliers.success) throw new Error('Could not load form options.');
       fillSelect(categorySelect, categories.data, 'category');
       fillSelect(supplierSelect, suppliers.data, 'supplier');
+
+      if (editId) {
+        const prodResponse = await fetch(`api/index.php?resource=products&id=${editId}`);
+        const prodResult = await prodResponse.json();
+        if (!prodResponse.ok || !prodResult.success) throw new Error(prodResult.message || 'Product not found.');
+        const p = prodResult.data;
+        document.getElementById('productName').value = p.name || '';
+        categorySelect.value = p.category_id || '';
+        document.getElementById('barcode').value = p.isbn_barcode || '';
+        document.getElementById('unitPrice').value = p.unit_price || '';
+        supplierSelect.value = p.primary_supplier_id || '';
+        document.getElementById('stockQuantity').value = p.stock_quantity ?? '';
+        document.getElementById('reorderLevel').value = p.reorder_level ?? '';
+      }
     } catch (error) {
       alert(error.message);
     }
 
     form.addEventListener('submit', async event => {
       event.preventDefault();
-      const response = await fetch('api/index.php?resource=products', {
-        method: 'POST',
+      const endpoint = editId
+        ? `api/index.php?resource=products&id=${editId}`
+        : 'api/index.php?resource=products';
+      const method = editId ? 'PUT' : 'POST';
+
+      const response = await fetch(endpoint, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: document.getElementById('productName').value,
