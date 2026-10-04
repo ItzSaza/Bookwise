@@ -80,6 +80,30 @@ function validateSupplier(array $input): array
     ];
 }
 
+// Validates and normalizes expense data shared by the create and update endpoints.
+function validateExpense(array $input): array
+{
+    $type = trim((string) ($input['expense_type'] ?? ''));
+    $description = trim((string) ($input['description'] ?? ''));
+    $amountValue = $input['amount'] ?? null;
+    $amount = is_numeric($amountValue) ? (float) $amountValue : false;
+    $date = trim((string) ($input['expense_date'] ?? date('Y-m-d')));
+    $parsedDate = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+
+    if ($type === '' || strlen($type) > 100 || $description === '' || strlen($description) > 255
+        || $amount === false || !is_finite($amount) || $amount <= 0
+        || $parsedDate === false || $parsedDate->format('Y-m-d') !== $date) {
+        respond(['success' => false, 'message' => 'Enter a valid category, description, positive amount, and date.'], 422);
+    }
+
+    return [
+        'expense_type' => $type,
+        'description' => $description,
+        'amount' => $amount,
+        'expense_date' => $date,
+    ];
+}
+
 // Validates and normalizes sale data, including item totals, discount, tax, and final total.
 function validateSale(array $input): array
 {
@@ -368,28 +392,56 @@ try {
         ]);
     }
 
-    // Expense creation endpoint: validates amount, description, and date before storing the expense record.
+    // Expense listing endpoint: returns all expense records for the financial management screen.
+    if ($resource === 'expenses' && $method === 'GET') {
+        $expenses = $database->query(
+            'SELECT id, expense_ref, expense_type, description, amount, expense_date
+             FROM expenses
+             ORDER BY expense_date DESC, id DESC'
+        )->fetchAll();
+        respond(['success' => true, 'data' => $expenses]);
+    }
+
+    // Expense creation endpoint: validates and stores a new expense record.
     if ($resource === 'expenses' && $method === 'POST') {
-        $type = trim((string) ($body['expense_type'] ?? ''));
-        $description = trim((string) ($body['description'] ?? ''));
-        $amount = filter_var($body['amount'] ?? null, FILTER_VALIDATE_FLOAT);
-        $date = trim((string) ($body['expense_date'] ?? date('Y-m-d')));
-        if ($type === '' || $description === '' || $amount === false || $amount <= 0) {
-            respond(['success' => false, 'message' => 'Expense type, description, and a positive amount are required.'], 422);
-        }
-        $expenseRef = 'EXP-' . str_pad((string) (time() % 10000), 4, '0', STR_PAD_LEFT);
+        $expense = validateExpense($body);
+        $expenseRef = 'EXP-' . strtoupper(bin2hex(random_bytes(4)));
         $statement = $database->prepare(
             'INSERT INTO expenses (expense_ref, expense_type, description, amount, expense_date)
              VALUES (:expense_ref, :expense_type, :description, :amount, :expense_date)'
         );
-        $statement->execute([
-            'expense_ref' => $expenseRef,
-            'expense_type' => $type,
-            'description' => $description,
-            'amount' => $amount,
-            'expense_date' => $date,
-        ]);
+        $statement->execute(['expense_ref' => $expenseRef] + $expense);
         respond(['success' => true, 'message' => 'Expense added successfully.', 'expense_ref' => $expenseRef], 201);
+    }
+
+    // Expense update endpoint: changes editable fields while preserving the original reference.
+    if ($resource === 'expenses' && $id && $method === 'PUT') {
+        $expense = validateExpense($body);
+        $statement = $database->prepare(
+            'UPDATE expenses
+             SET expense_type = :expense_type, description = :description,
+                 amount = :amount, expense_date = :expense_date
+             WHERE id = :id'
+        );
+        $statement->execute($expense + ['id' => $id]);
+        if ($statement->rowCount() === 0) {
+            $exists = $database->prepare('SELECT 1 FROM expenses WHERE id = :id');
+            $exists->execute(['id' => $id]);
+            if (!$exists->fetchColumn()) {
+                respond(['success' => false, 'message' => 'Expense was not found.'], 404);
+            }
+        }
+        respond(['success' => true, 'message' => 'Expense updated successfully.']);
+    }
+
+    // Expense deletion endpoint: removes the selected expense record.
+    if ($resource === 'expenses' && $id && $method === 'DELETE') {
+        $statement = $database->prepare('DELETE FROM expenses WHERE id = :id');
+        $statement->execute(['id' => $id]);
+        if ($statement->rowCount() === 0) {
+            respond(['success' => false, 'message' => 'Expense was not found.'], 404);
+        }
+        respond(['success' => true, 'message' => 'Expense deleted successfully.']);
     }
 
     // Product listing endpoint: returns active products with search and category filtering options.

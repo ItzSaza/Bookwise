@@ -80,48 +80,210 @@
           </div>
         </div>
       </div>
+
+      <div class="panel expense-panel">
+        <div class="panel-head">
+          <div>
+            <h3>Expense Records</h3>
+            <div class="sub" id="expenseCount">Loading expenses…</div>
+          </div>
+          <button class="btn btn-primary btn-sm" id="expenseTableAddBtn" type="button">+ Add Expense</button>
+        </div>
+        <div class="panel-body flush expense-table-wrap">
+          <table class="expense-table">
+            <thead>
+              <tr><th>Reference</th><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="expenseTableBody">
+              <tr><td colspan="6" class="expense-empty">Loading expenses…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </section>
   </main>
 </div>
+
+<dialog class="expense-dialog" id="expenseDialog" aria-labelledby="expenseDialogTitle">
+  <form id="expenseForm" class="expense-form">
+    <div class="expense-dialog-head">
+      <div>
+        <div class="crumb">Financial Management</div>
+        <h2 id="expenseDialogTitle">Add Expense</h2>
+      </div>
+      <button class="expense-close" id="closeExpenseDialog" type="button" aria-label="Close">×</button>
+    </div>
+    <input id="expenseId" name="id" type="hidden">
+    <div class="form-grid">
+      <div class="field">
+        <label for="expenseType">Expense category</label>
+        <input id="expenseType" name="expense_type" type="text" maxlength="100" placeholder="e.g. Utilities" required>
+      </div>
+      <div class="field">
+        <label for="expenseDate">Expense date</label>
+        <input id="expenseDate" name="expense_date" type="date" required>
+      </div>
+      <div class="field full">
+        <label for="expenseDescription">Description</label>
+        <input id="expenseDescription" name="description" type="text" maxlength="255" placeholder="What was this expense for?" required>
+      </div>
+      <div class="field full">
+        <label for="expenseAmount">Amount (Rs.)</label>
+        <input id="expenseAmount" name="amount" type="number" min="0.01" step="0.01" placeholder="0.00" required>
+      </div>
+    </div>
+    <div class="expense-form-error" id="expenseFormError" role="alert"></div>
+    <div class="expense-dialog-actions">
+      <button class="btn btn-ghost" id="cancelExpense" type="button">Cancel</button>
+      <button class="btn btn-primary" id="saveExpenseBtn" type="submit">Save Expense</button>
+    </div>
+  </form>
+</dialog>
+
 <script src="script.js"></script>
 <script>
   (async function () {
     const money = value => 'Rs. ' + Number(value).toLocaleString('en-LK', { maximumFractionDigits: 0 });
-    const body = document.getElementById('transactionBody');
-    async function loadFinancials() {
-      const response = await fetch('api/index.php?resource=financials');
+    const transactionBody = document.getElementById('transactionBody');
+    const expenseTableBody = document.getElementById('expenseTableBody');
+    const expenseDialog = document.getElementById('expenseDialog');
+    const expenseForm = document.getElementById('expenseForm');
+    const formError = document.getElementById('expenseFormError');
+    const saveButton = document.getElementById('saveExpenseBtn');
+    let expenses = [];
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, character => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+      }[character]));
+    }
+
+    async function requestJson(url, options) {
+      const response = await fetch(url, options);
       const result = await response.json();
-      if (!response.ok || !result.success) throw new Error(result.message);
+      if (!response.ok || !result.success) throw new Error(result.message || 'The request could not be completed.');
+      return result;
+    }
+
+    function renderExpenses() {
+      document.getElementById('expenseCount').textContent =
+        `${expenses.length} ${expenses.length === 1 ? 'expense' : 'expenses'} · loaded from database`;
+      expenseTableBody.innerHTML = expenses.map(expense => `<tr>
+        <td class="cell-mono">${escapeHtml(expense.expense_ref)}</td>
+        <td>${escapeHtml(expense.expense_date)}</td>
+        <td class="cell-strong">${escapeHtml(expense.expense_type)}</td>
+        <td>${escapeHtml(expense.description)}</td>
+        <td class="expense-amount">${money(expense.amount)}</td>
+        <td>
+          <div class="row-actions">
+            <button class="icon-btn" type="button" data-edit-id="${Number(expense.id)}">Edit</button>
+            <button class="icon-btn expense-delete-btn" type="button" data-delete-id="${Number(expense.id)}">Delete</button>
+          </div>
+        </td>
+      </tr>`).join('') || '<tr><td colspan="6" class="expense-empty">No expenses recorded yet. Add your first expense to get started.</td></tr>';
+    }
+
+    function openExpenseForm(expense) {
+      expenseForm.reset();
+      formError.textContent = '';
+      document.getElementById('expenseId').value = expense ? expense.id : '';
+      document.getElementById('expenseType').value = expense ? expense.expense_type : '';
+      document.getElementById('expenseDescription').value = expense ? expense.description : '';
+      document.getElementById('expenseAmount').value = expense ? expense.amount : '';
+      const today = new Date();
+      today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+      document.getElementById('expenseDate').value = expense
+        ? expense.expense_date
+        : today.toISOString().slice(0, 10);
+      document.getElementById('expenseDialogTitle').textContent = expense ? 'Edit Expense' : 'Add Expense';
+      saveButton.textContent = expense ? 'Save Changes' : 'Save Expense';
+      expenseDialog.showModal();
+      document.getElementById('expenseType').focus();
+    }
+
+    async function loadExpenses() {
+      const result = await requestJson('api/index.php?resource=expenses');
+      expenses = result.data;
+      renderExpenses();
+    }
+
+    async function loadFinancials() {
+      const result = await requestJson('api/index.php?resource=financials');
       document.getElementById('revenueValue').textContent = money(result.data.revenue);
       document.getElementById('expenseValue').textContent = money(result.data.expenses);
       document.getElementById('profitValue').textContent = money(result.data.profit);
-      body.innerHTML = result.data.transactions.map(transaction => `<tr>
-        <td class="cell-mono">${transaction.ref}</td>
-        <td>${transaction.type}</td>
+      transactionBody.innerHTML = result.data.transactions.map(transaction => `<tr>
+        <td class="cell-mono">${escapeHtml(transaction.ref)}</td>
+        <td>${escapeHtml(transaction.type)}</td>
         <td>${money(transaction.amount)}</td>
       </tr>`).join('') || '<tr><td colspan="3">No transactions recorded yet.</td></tr>';
     }
 
-    document.getElementById('addExpenseBtn').addEventListener('click', async () => {
-      const type = prompt('Expense type (e.g. Utility Bill):');
-      if (!type) return;
-      const description = prompt('Expense description:');
-      if (!description) return;
-      const amount = prompt('Expense amount:');
-      if (!amount) return;
-      const response = await fetch('api/index.php?resource=expenses', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ expense_type: type, description, amount })
-      });
-      const result = await response.json();
-      if (!response.ok || !result.success) return alert(result.message);
-      alert(result.message);
-      await loadFinancials();
+    function closeExpenseForm() {
+      expenseDialog.close();
+    }
+
+    document.getElementById('addExpenseBtn').addEventListener('click', () => openExpenseForm(null));
+    document.getElementById('expenseTableAddBtn').addEventListener('click', () => openExpenseForm(null));
+    document.getElementById('closeExpenseDialog').addEventListener('click', closeExpenseForm);
+    document.getElementById('cancelExpense').addEventListener('click', closeExpenseForm);
+
+    expenseForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      formError.textContent = '';
+      saveButton.disabled = true;
+      saveButton.textContent = 'Saving…';
+      const id = document.getElementById('expenseId').value;
+      const payload = {
+        expense_type: document.getElementById('expenseType').value.trim(),
+        description: document.getElementById('expenseDescription').value.trim(),
+        amount: document.getElementById('expenseAmount').value,
+        expense_date: document.getElementById('expenseDate').value
+      };
+      try {
+        await requestJson(
+          id ? `api/index.php?resource=expenses&id=${encodeURIComponent(id)}` : 'api/index.php?resource=expenses',
+          {
+            method: id ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          }
+        );
+        closeExpenseForm();
+        await Promise.all([loadExpenses(), loadFinancials()]);
+      } catch (error) {
+        formError.textContent = error.message;
+      } finally {
+        saveButton.disabled = false;
+        saveButton.textContent = id ? 'Save Changes' : 'Save Expense';
+      }
     });
 
-    loadFinancials().catch(error => {
-      body.innerHTML = `<tr><td colspan="3">${error.message}</td></tr>`;
+    expenseTableBody.addEventListener('click', async event => {
+      const editButton = event.target.closest('[data-edit-id]');
+      if (editButton) {
+        const expense = expenses.find(item => Number(item.id) === Number(editButton.dataset.editId));
+        if (expense) openExpenseForm(expense);
+        return;
+      }
+
+      const deleteButton = event.target.closest('[data-delete-id]');
+      if (!deleteButton || !confirm('Permanently delete this expense?')) return;
+      deleteButton.disabled = true;
+      try {
+        await requestJson(`api/index.php?resource=expenses&id=${encodeURIComponent(deleteButton.dataset.deleteId)}`, {
+          method: 'DELETE'
+        });
+        await Promise.all([loadExpenses(), loadFinancials()]);
+      } catch (error) {
+        alert(error.message);
+        deleteButton.disabled = false;
+      }
+    });
+
+    Promise.all([loadExpenses(), loadFinancials()]).catch(error => {
+      expenseTableBody.innerHTML = `<tr><td colspan="6" class="expense-empty">${escapeHtml(error.message)}</td></tr>`;
+      transactionBody.innerHTML = `<tr><td colspan="3">${escapeHtml(error.message)}</td></tr>`;
     });
   })();
 </script>

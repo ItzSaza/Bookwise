@@ -206,3 +206,45 @@ tr:hover td{background:#FBF9F3;}
   }
 
 }
+
+/* Financial expenses */
+.expense-panel{margin-top:24px;}
+.expense-table-wrap{overflow-x:auto;}
+.expense-table{min-width:800px;}
+.expense-table th:last-child,.expense-table td:last-child{width:150px;}
+.expense-amount{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:var(--navy-deep);white-space:nowrap;}
+.expense-delete-btn{color:var(--burgundy);}
+.expense-delete-btn:hover{border-color:var(--burgundy);color:var(--burgundy-deep);}
+.expense-empty{text-align:center;color:var(--muted);padding:30px 22px;}
+
+.expense-dialog{
+  width:min(540px,calc(100% - 32px));
+  max-width:none;
+  padding:0;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:var(--paper);
+  color:var(--ink);
+  box-shadow:0 24px 70px rgba(18,32,58,.25);
+}
+.expense-dialog::backdrop{background:rgba(18,32,58,.52);backdrop-filter:blur(2px);}
+.expense-form{padding:24px;}
+.expense-dialog-head{display:flex;justify-content:space-between;align-items:flex-start;padding:0 0 18px;border-bottom:1px solid var(--line);}
+.expense-dialog-head .crumb{margin:0 0 5px;}
+.expense-dialog-head h2{font-family:'Fraunces',serif;font-size:25px;color:var(--navy-deep);font-weight:600;margin:0;}
+.expense-close{all:unset;cursor:pointer;color:var(--muted);font-size:28px;line-height:1;padding:0 4px;}
+.expense-close:hover{color:var(--burgundy);}
+.expense-form .form-grid{padding:18px 0 8px;}
+.expense-form .field input{border:1px solid var(--line);border-radius:7px;padding:10px 12px;font-size:13.5px;font-family:'Inter',sans-serif;background:#FCFAF4;color:var(--ink);}
+.expense-form .field input:focus{outline:2px solid rgba(27,42,74,.18);border-color:var(--navy);}
+.expense-form-error{min-height:20px;color:var(--burgundy);font-size:12.5px;padding:0 0 5px;}
+.expense-dialog-actions{display:flex;justify-content:flex-end;gap:10px;padding-top:12px;border-top:1px solid var(--line);}
+.expense-dialog-actions .btn:disabled{opacity:.65;cursor:wait;}
+
+@media(max-width:900px){
+  .topbar{align-items:flex-start;flex-direction:column;}
+  .top-actions{flex-wrap:wrap;}
+  .expense-form{padding:20px;}
+  .expense-form .form-grid{grid-template-columns:1fr;}
+  .expense-form .field.full{grid-column:auto;}
+}
