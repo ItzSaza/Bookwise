@@ -584,6 +584,24 @@ try {
             "SELECT COALESCE(SUM(amount), 0) FROM expenses
              WHERE expense_date >= DATE_FORMAT(CURRENT_DATE, '%Y-%m-01')"
         )->fetchColumn();
+        $outstandingStatement = $database->query(
+            "SELECT COALESCE(SUM(total_amount), 0) AS total,
+                    COUNT(*) AS invoice_count
+             FROM sales WHERE status = 'Pending'"
+        );
+        $outstanding = $outstandingStatement->fetch();
+
+        // Aggregate paid sales from Monday through Sunday of the current week.
+        $weeklySales = $database->query(
+            "SELECT DATE(created_at) AS sale_date, COALESCE(SUM(total_amount), 0) AS total
+             FROM sales
+             WHERE status = 'Paid'
+               AND created_at >= DATE_SUB(CURRENT_DATE, INTERVAL WEEKDAY(CURRENT_DATE) DAY)
+               AND created_at < DATE_ADD(DATE_SUB(CURRENT_DATE, INTERVAL WEEKDAY(CURRENT_DATE) DAY), INTERVAL 7 DAY)
+             GROUP BY DATE(created_at)
+             ORDER BY sale_date"
+        )->fetchAll();
+
         $transactions = $database->query(
             "SELECT order_ref AS ref, 'Sale' AS type, total_amount AS amount, created_at AS transaction_date
              FROM sales WHERE status = 'Paid'
@@ -598,6 +616,9 @@ try {
                 'revenue' => $salesTotal,
                 'expenses' => $expenseTotal,
                 'profit' => $salesTotal - $expenseTotal,
+                'outstanding' => (float) $outstanding['total'],
+                'outstanding_count' => (int) $outstanding['invoice_count'],
+                'weekly_sales' => $weeklySales,
                 'transactions' => $transactions,
             ],
         ]);
