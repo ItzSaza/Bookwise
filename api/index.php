@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 header('Content-Type: application/json; charset=utf-8');
+session_set_cookie_params(['httponly' => true, 'samesite' => 'Lax', 'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off']);
+session_start();
 
 require_once __DIR__ . '/config/database.php';
 
@@ -161,6 +163,21 @@ try {
         respond(['success' => true, 'message' => 'Bookwise API is connected to MySQL.']);
     }
 
+    // Session inspection and logout endpoints.
+    if ($resource === 'auth' && $method === 'GET') {
+        if (empty($_SESSION['user'])) respond(['success' => false, 'message' => 'Not authenticated.'], 401);
+        respond(['success' => true, 'user' => $_SESSION['user']]);
+    }
+    if ($resource === 'logout' && $method === 'POST') {
+        $_SESSION = [];
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+        }
+        session_destroy();
+        respond(['success' => true, 'message' => 'Logged out.']);
+    }
+
     // Authentication endpoint: validates username and bcrypt password against the users table.
     if ($resource === 'auth' && $method === 'POST') {
         $username = trim((string) ($body['username'] ?? ''));
@@ -185,6 +202,9 @@ try {
         if (!password_verify($password, $user['password_hash'])) {
             respond(['success' => false, 'message' => 'Invalid username or password.'], 401);
         }
+        $database->prepare("UPDATE users SET status = 'Active' WHERE id = :id")->execute(['id' => $user['id']]);
+        session_regenerate_id(true);
+        $_SESSION['user'] = ['id' => (int) $user['id'], 'username' => $username, 'full_name' => $user['full_name'], 'role' => $user['role']];
         respond([
             'success'   => true,
             'message'   => 'Login successful.',
@@ -194,6 +214,10 @@ try {
                 'role'      => $user['role'],
             ],
         ]);
+    }
+
+    if (empty($_SESSION['user'])) {
+        respond(['success' => false, 'message' => 'Please log in to access the system.'], 401);
     }
 
     // Category lookup endpoint: returns the available inventory categories.
@@ -572,6 +596,80 @@ try {
             respond(['success' => false, 'message' => 'Employee was not found.'], 404);
         }
         respond(['success' => true, 'message' => 'Employee deleted successfully.']);
+    }
+
+    // Financial report endpoint: returns live database totals and ledger for a selected date range.
+    if ($resource === 'financial-report' && $method === 'GET') {
+        $start = trim((string) ($_GET['start'] ?? date('Y-m-01')));
+        $end = trim((string) ($_GET['end'] ?? date('Y-m-d')));
+        $validDate = static function (string $value): bool {
+            $date = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+            return $date !== false && $date->format('Y-m-d') === $value;
+        };
+        if (!$validDate($start) || !$validDate($end) || $start > $end) {
+            respond(['success' => false, 'message' => 'Choose a valid date range.'], 422);
+        }
+
+        $salesStmt = $database->prepare(
+            "SELECT COALESCE(SUM(total_amount), 0) FROM sales
+             WHERE status = 'Paid' AND created_at >= :start AND created_at < DATE_ADD(:end, INTERVAL 1 DAY)"
+        );
+        $salesStmt->execute(['start' => $start, 'end' => $end]);
+        $revenue = (float) $salesStmt->fetchColumn();
+
+        $expenseStmt = $database->prepare(
+            "SELECT COALESCE(SUM(amount), 0) FROM expenses
+             WHERE expense_date >= :start AND expense_date <= :end"
+        );
+        $expenseStmt->execute(['start' => $start, 'end' => $end]);
+        $expenseTotal = (float) $expenseStmt->fetchColumn();
+
+        $incomeBreakdownStmt = $database->prepare(
+            "SELECT payment_method AS category, COALESCE(SUM(total_amount), 0) AS amount
+             FROM sales
+             WHERE status = 'Paid' AND created_at >= :start AND created_at < DATE_ADD(:end, INTERVAL 1 DAY)
+             GROUP BY payment_method ORDER BY amount DESC"
+        );
+        $incomeBreakdownStmt->execute(['start' => $start, 'end' => $end]);
+        $incomeBreakdown = $incomeBreakdownStmt->fetchAll();
+
+        $expenseBreakdownStmt = $database->prepare(
+            "SELECT expense_type AS category, COALESCE(SUM(amount), 0) AS amount
+             FROM expenses WHERE expense_date >= :start AND expense_date <= :end
+             GROUP BY expense_type ORDER BY amount DESC"
+        );
+        $expenseBreakdownStmt->execute(['start' => $start, 'end' => $end]);
+        $expenseBreakdown = $expenseBreakdownStmt->fetchAll();
+
+        $ledgerStmt = $database->prepare(
+            "SELECT * FROM (
+                SELECT DATE(created_at) AS transaction_date, order_ref AS ref, 'Sale' AS type,
+                       customer_name AS description, total_amount AS amount
+                FROM sales WHERE status = 'Paid' AND created_at >= :sale_start AND created_at < DATE_ADD(:sale_end, INTERVAL 1 DAY)
+                UNION ALL
+                SELECT expense_date AS transaction_date, expense_ref AS ref, 'Expense' AS type,
+                       CONCAT(expense_type, ' — ', description) AS description, -amount AS amount
+                FROM expenses WHERE expense_date >= :expense_start AND expense_date <= :expense_end
+             ) AS ledger ORDER BY transaction_date DESC, ref DESC"
+        );
+        $ledgerStmt->execute(['sale_start' => $start, 'sale_end' => $end, 'expense_start' => $start, 'expense_end' => $end]);
+        $ledger = $ledgerStmt->fetchAll();
+
+        $outstanding = (float) $database->query(
+            "SELECT COALESCE(SUM(total_amount), 0) FROM sales WHERE status = 'Pending'"
+        )->fetchColumn();
+
+        respond(['success' => true, 'data' => [
+            'start' => $start, 'end' => $end,
+            'revenue' => $revenue, 'expenses' => $expenseTotal,
+            'profit' => $revenue - $expenseTotal,
+            'profit_margin' => $revenue > 0 ? (($revenue - $expenseTotal) / $revenue) * 100 : 0,
+            'outstanding' => $outstanding,
+            'income_breakdown' => $incomeBreakdown,
+            'expense_breakdown' => $expenseBreakdown,
+            'ledger' => $ledger,
+            'transaction_count' => count($ledger)
+        ]]);
     }
 
     // Financial summary endpoint: calculates revenue, expenses, profit, and recent transaction history for the month.
