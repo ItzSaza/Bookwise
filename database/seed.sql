@@ -14,7 +14,7 @@ USE bookwise;
 --   password123 → $2y$12$Lov2TxO1RN3EG3v7HQZN0OO0pxEG13hzDblvkHRRkU9wnb8Gr7n2m
 INSERT INTO users (full_name, username, email, password_hash, role, status)
 VALUES
-    ('L G A S Galappaththi', 'admin',      'galappaththi@bookwise.lk', '$2y$12$Lov2TxO1RN3EG3v7HQZN0OXdByLXuSB/pZT8RrYLqlJj1C6Uv.3eC', 'Admin',   'Active'),
+    ('L G A S Galappaththi', 'galappaththi',      'galappaththi@bookwise.lk', '$2y$12$Lov2TxO1RN3EG3v7HQZN0OXdByLXuSB/pZT8RrYLqlJj1C6Uv.3eC', 'Admin',   'Active'),
     ('H M O I N Weerakoon',  'weerakoon',  'weerakoon@bookwise.lk',    '$2y$12$Lov2TxO1RN3EG3v7HQZN0OO0pxEG13hzDblvkHRRkU9wnb8Gr7n2m', 'Staff',   'Active'),
     ('M A P Perera',         'perera',     'perera.m@bookwise.lk',     '$2y$12$Lov2TxO1RN3EG3v7HQZN0OO0pxEG13hzDblvkHRRkU9wnb8Gr7n2m', 'Staff',   'Active'),
     ('S D Edirimanna',       'edirimanna', 'edirimanna@bookwise.lk',   '$2y$12$Lov2TxO1RN3EG3v7HQZN0OO0pxEG13hzDblvkHRRkU9wnb8Gr7n2m', 'Admin',   'Inactive'),

@@ -1,1 +1,10 @@
 DirectoryIndex index.html
+Options -Indexes
+RewriteEngine On
+# Protect every application HTML page at the server level. login.html remains public.
+RewriteCond %{REQUEST_URI} !/login\.html$ [NC]
+RewriteCond %{REQUEST_URI} !/index\.html$ [NC]
+RewriteCond %{REQUEST_URI} !/auth-gate\.php$ [NC]
+RewriteCond %{REQUEST_URI} !/api/ [NC]
+RewriteCond %{REQUEST_URI} !/.*\.(css|js|png|jpg|jpeg|gif|svg|webp|ico|woff2?)$ [NC]
+RewriteRule ^([A-Za-z0-9_-]+\.html)$ auth-gate.php?page=$1 [END,QSA]

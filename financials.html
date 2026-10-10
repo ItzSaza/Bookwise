@@ -51,22 +51,17 @@
         <div class="stat"><div class="stat-label">Revenue (MTD)</div><div class="stat-val" id="revenueValue">Rs. 0</div><div class="stat-note">Paid sales from database</div></div>
         <div class="stat alt"><div class="stat-label">Expenses (MTD)</div><div class="stat-val" id="expenseValue">Rs. 0</div><div class="stat-note">Recorded expenses</div></div>
         <div class="stat"><div class="stat-label">Net Profit</div><div class="stat-val" id="profitValue">Rs. 0</div><div class="stat-note">Revenue minus expenses</div></div>
-        <div class="stat warn"><div class="stat-label">Outstanding</div><div class="stat-val">Rs. 12,400</div><div class="stat-note down">2 unpaid invoices</div></div>
+        <div class="stat warn"><div class="stat-label">Outstanding</div><div class="stat-val" id="outstandingValue">Rs. 0</div><div class="stat-note down" id="outstandingNote">Unpaid invoices</div></div>
       </div>
 
       <div class="grid-2">
         <div class="panel">
           <div class="panel-head"><div><h3>Weekly Sales</h3><div class="sub">Mon – Sun, current week</div></div></div>
           <div class="panel-body">
-            <div class="bars">
-              <div class="bar-wrap"><div class="bar" style="height:60px"></div><div class="bar-label">Mon</div></div>
-              <div class="bar-wrap"><div class="bar" style="height:82px"></div><div class="bar-label">Tue</div></div>
-              <div class="bar-wrap"><div class="bar" style="height:70px"></div><div class="bar-label">Wed</div></div>
-              <div class="bar-wrap"><div class="bar" style="height:105px"></div><div class="bar-label">Thu</div></div>
-              <div class="bar-wrap"><div class="bar" style="height:130px"></div><div class="bar-label">Fri</div></div>
-              <div class="bar-wrap"><div class="bar" style="height:150px"></div><div class="bar-label">Sat</div></div>
-              <div class="bar-wrap"><div class="bar" style="height:96px"></div><div class="bar-label">Sun</div></div>
+            <div class="bars" id="weeklySalesChart" aria-label="Paid sales by day for the current week">
+              <div class="expense-empty">Loading weekly sales…</div>
             </div>
+            <div class="sub" id="weeklySalesTotal" style="margin-top:12px">Current week total: Rs. 0</div>
           </div>
         </div>
 
@@ -145,6 +140,7 @@
   (async function () {
     const money = value => 'Rs. ' + Number(value).toLocaleString('en-LK', { maximumFractionDigits: 0 });
     const transactionBody = document.getElementById('transactionBody');
+    const weeklySalesChart = document.getElementById('weeklySalesChart');
     const expenseTableBody = document.getElementById('expenseTableBody');
     const expenseDialog = document.getElementById('expenseDialog');
     const expenseForm = document.getElementById('expenseForm');
@@ -207,11 +203,40 @@
       renderExpenses();
     }
 
+    function renderWeeklySales(rows) {
+      const totals = new Map(rows.map(row => [String(row.sale_date).slice(0, 10), Number(row.total) || 0]));
+      const today = new Date();
+      today.setHours(12, 0, 0, 0);
+      const monday = new Date(today);
+      monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+      const days = Array.from({ length: 7 }, (_, index) => {
+        const date = new Date(monday);
+        date.setDate(monday.getDate() + index);
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        return { key, label: date.toLocaleDateString('en', { weekday: 'short' }), total: totals.get(key) || 0 };
+      });
+      const max = Math.max(...days.map(day => day.total), 1);
+      const weekTotal = days.reduce((sum, day) => sum + day.total, 0);
+      weeklySalesChart.innerHTML = days.map(day => {
+        const height = day.total > 0 ? Math.max(5, Math.round((day.total / max) * 150)) : 3;
+        return `<div class="bar-wrap" title="${escapeHtml(day.label)}: ${money(day.total)}">
+          <div class="bar" style="height:${height}px" aria-label="${escapeHtml(day.label)} sales ${money(day.total)}"></div>
+          <div class="bar-label">${escapeHtml(day.label)}</div>
+          <div class="bar-label">${day.total ? money(day.total) : '—'}</div>
+        </div>`;
+      }).join('');
+      document.getElementById('weeklySalesTotal').textContent = `Current week total: ${money(weekTotal)}`;
+    }
+
     async function loadFinancials() {
       const result = await requestJson('api/index.php?resource=financials');
       document.getElementById('revenueValue').textContent = money(result.data.revenue);
       document.getElementById('expenseValue').textContent = money(result.data.expenses);
       document.getElementById('profitValue').textContent = money(result.data.profit);
+      document.getElementById('outstandingValue').textContent = money(result.data.outstanding);
+      const count = Number(result.data.outstanding_count) || 0;
+      document.getElementById('outstandingNote').textContent = `${count} unpaid ${count === 1 ? 'invoice' : 'invoices'}`;
+      renderWeeklySales(result.data.weekly_sales || []);
       transactionBody.innerHTML = result.data.transactions.map(transaction => `<tr>
         <td class="cell-mono">${escapeHtml(transaction.ref)}</td>
         <td>${escapeHtml(transaction.type)}</td>
@@ -281,11 +306,22 @@
       }
     });
 
-    Promise.all([loadExpenses(), loadFinancials()]).catch(error => {
-      expenseTableBody.innerHTML = `<tr><td colspan="6" class="expense-empty">${escapeHtml(error.message)}</td></tr>`;
-      transactionBody.innerHTML = `<tr><td colspan="3">${escapeHtml(error.message)}</td></tr>`;
-    });
+    async function refreshDashboard() {
+      try {
+        await Promise.all([loadExpenses(), loadFinancials()]);
+      } catch (error) {
+        expenseTableBody.innerHTML = `<tr><td colspan="6" class="expense-empty">${escapeHtml(error.message)}</td></tr>`;
+        transactionBody.innerHTML = `<tr><td colspan="3">${escapeHtml(error.message)}</td></tr>`;
+        weeklySalesChart.innerHTML = `<div class="expense-empty">${escapeHtml(error.message)}</div>`;
+      }
+    }
+
+    refreshDashboard();
+    // Keep the dashboard in sync with sales and expenses entered elsewhere in the app.
+    window.setInterval(refreshDashboard, 30000);
+    window.addEventListener('focus', refreshDashboard);
   })();
 </script>
+<script src="auth.js"></script>
 </body>
 </html>
