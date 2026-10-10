@@ -270,6 +270,284 @@ try {
         }
     }
 
+        // ===== SUPPLIER MODULE ADDITIONS =====
+
+    // Orders above this amount need Admin approval before goods can be received.
+    $approvalThreshold = 20000.00;
+
+    // Delivery statistics per supplier (used for the Reliability badge).
+    if ($resource === 'supplier_stats' && $method === 'GET') {
+        $statement = $database->query(
+            "SELECT supplier_id,
+                    SUM(CASE WHEN status = 'Delivered' THEN 1 ELSE 0 END) AS completed_count,
+                    SUM(CASE WHEN status = 'Delivered'
+                              AND (expected_date IS NULL OR DATE(delivered_at) <= expected_date)
+                             THEN 1 ELSE 0 END) AS on_time_count
+             FROM purchase_orders
+             GROUP BY supplier_id"
+        );
+        respond(['success' => true, 'data' => $statement->fetchAll()]);
+    }
+
+    // Products at or below their reorder level, with their linked supplier.
+    if ($resource === 'low_stock' && $method === 'GET') {
+        $statement = $database->query(
+            "SELECT p.id, p.name, p.stock_quantity, p.reorder_level, p.unit_price,
+                    s.id AS supplier_id, s.name AS supplier_name
+             FROM products p
+             INNER JOIN suppliers s ON s.id = p.primary_supplier_id
+             WHERE p.status = 'Active' AND s.status = 'Active'
+               AND p.stock_quantity <= p.reorder_level
+             ORDER BY (CAST(p.reorder_level AS SIGNED) - CAST(p.stock_quantity AS SIGNED)) DESC"
+        );
+        respond(['success' => true, 'data' => $statement->fetchAll()]);
+    }
+
+    // Compare suppliers who have supplied a product before (cost, lead time, reliability).
+    if ($resource === 'supplier_recommendations' && $method === 'GET') {
+        $productName = trim((string) ($_GET['product_name'] ?? ''));
+        if ($productName === '') {
+            respond(['success' => false, 'message' => 'A product name is required.'], 422);
+        }
+        $statement = $database->prepare(
+            "SELECT s.id AS supplier_id, s.name AS supplier_name,
+                    ROUND(AVG(poi.unit_cost), 2) AS avg_cost,
+                    COUNT(DISTINCT po.id) AS order_count,
+                    ROUND(AVG(CASE WHEN po.status = 'Delivered'
+                                   THEN DATEDIFF(po.delivered_at, po.order_date) END), 1) AS avg_lead_time_days,
+                    SUM(CASE WHEN po.status = 'Delivered' THEN 1 ELSE 0 END) AS completed_count,
+                    SUM(CASE WHEN po.status = 'Delivered'
+                              AND (po.expected_date IS NULL OR DATE(po.delivered_at) <= po.expected_date)
+                             THEN 1 ELSE 0 END) AS on_time_count
+             FROM purchase_order_items poi
+             INNER JOIN purchase_orders po ON po.id = poi.purchase_order_id
+             INNER JOIN suppliers s ON s.id = po.supplier_id
+             WHERE poi.product_name LIKE :product_name
+               AND s.status = 'Active' AND po.status <> 'Cancelled'
+             GROUP BY s.id, s.name
+             ORDER BY avg_cost ASC"
+        );
+        $statement->execute(['product_name' => '%' . $productName . '%']);
+        respond(['success' => true, 'data' => $statement->fetchAll()]);
+    }
+
+    // Purchase order list.
+    if ($resource === 'purchase_orders' && $method === 'GET' && !$id) {
+        $statement = $database->query(
+            "SELECT po.id, po.po_ref, po.supplier_id, s.name AS supplier_name,
+                    po.order_date, po.expected_date, po.status, po.approval_status, po.total_amount,
+                    CASE WHEN po.status = 'Pending' AND po.expected_date IS NOT NULL
+                              AND po.expected_date < CURDATE() THEN 1 ELSE 0 END AS is_overdue,
+                    COALESCE(recv.receipt_status, 'Not Yet Received') AS receipt_status
+             FROM purchase_orders po
+             INNER JOIN suppliers s ON s.id = po.supplier_id
+             LEFT JOIN (
+                 SELECT purchase_order_id,
+                        CASE
+                            WHEN SUM(received_quantity) IS NULL THEN 'Not Yet Received'
+                            WHEN SUM(received_quantity) = SUM(quantity) THEN 'Fully Received'
+                            WHEN SUM(received_quantity) < SUM(quantity) THEN 'Partially Received'
+                            ELSE 'Over-Received'
+                        END AS receipt_status
+                 FROM purchase_order_items
+                 GROUP BY purchase_order_id
+             ) recv ON recv.purchase_order_id = po.id
+             ORDER BY po.order_date DESC, po.id DESC"
+        );
+        respond(['success' => true, 'data' => $statement->fetchAll()]);
+    }
+
+    // Single purchase order with its items (used by the Receive page).
+    if ($resource === 'purchase_orders' && $method === 'GET' && $id) {
+        $statement = $database->prepare(
+            'SELECT po.id, po.po_ref, po.supplier_id, s.name AS supplier_name,
+                    po.order_date, po.expected_date, po.status, po.approval_status,
+                    po.notes, po.total_amount
+             FROM purchase_orders po
+             INNER JOIN suppliers s ON s.id = po.supplier_id
+             WHERE po.id = :id'
+        );
+        $statement->execute(['id' => $id]);
+        $order = $statement->fetch();
+        if (!$order) {
+            respond(['success' => false, 'message' => 'Purchase order was not found.'], 404);
+        }
+        $itemStatement = $database->prepare(
+            'SELECT id, product_name, quantity, unit_cost, line_total, received_quantity
+             FROM purchase_order_items WHERE purchase_order_id = :id'
+        );
+        $itemStatement->execute(['id' => $id]);
+        $order['items'] = $itemStatement->fetchAll();
+        respond(['success' => true, 'data' => $order]);
+    }
+
+    // Create a purchase order (with validation). Orders over the threshold wait for approval.
+    if ($resource === 'purchase_orders' && $method === 'POST') {
+        $validDate = static function (?string $value): bool {
+            if ($value === null) {
+                return false;
+            }
+            $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+            return $parsed !== false && $parsed->format('Y-m-d') === $value;
+        };
+
+        $supplierId = filter_var($body['supplier_id'] ?? null, FILTER_VALIDATE_INT);
+        $orderDate = trim((string) ($body['order_date'] ?? '')) ?: date('Y-m-d');
+        $expectedDate = trim((string) ($body['expected_date'] ?? '')) ?: null;
+        $notes = trim((string) ($body['notes'] ?? '')) ?: null;
+        $rawItems = is_array($body['items'] ?? null) ? $body['items'] : [];
+
+        if (!$supplierId || count($rawItems) === 0) {
+            respond(['success' => false, 'message' => 'Supplier and at least one item are required.'], 422);
+        }
+        if (!$validDate($orderDate) || ($expectedDate !== null && !$validDate($expectedDate))) {
+            respond(['success' => false, 'message' => 'Enter valid dates.'], 422);
+        }
+        if ($expectedDate !== null && $expectedDate < $orderDate) {
+            respond(['success' => false, 'message' => 'Expected delivery cannot be before the order date.'], 422);
+        }
+
+        $supplierCheck = $database->prepare('SELECT status FROM suppliers WHERE id = :id');
+        $supplierCheck->execute(['id' => $supplierId]);
+        $supplierStatus = $supplierCheck->fetchColumn();
+        if ($supplierStatus !== 'Active') {
+            respond(['success' => false, 'message' => 'Choose an active supplier.'], 422);
+        }
+
+        $poItems = [];
+        $poTotal = 0.0;
+        foreach ($rawItems as $raw) {
+            $name = trim((string) ($raw['product_name'] ?? ''));
+            $qty = filter_var($raw['quantity'] ?? null, FILTER_VALIDATE_INT);
+            $cost = filter_var($raw['unit_cost'] ?? null, FILTER_VALIDATE_FLOAT);
+            if ($name === '' || strlen($name) > 180 || $qty === false || $qty < 1 || $cost === false || $cost < 0) {
+                respond(['success' => false, 'message' => 'Every item needs a name, a quantity of 1 or more, and a valid cost.'], 422);
+            }
+            $poItems[] = ['name' => $name, 'qty' => $qty, 'cost' => $cost, 'line' => $qty * $cost];
+            $poTotal += $qty * $cost;
+        }
+
+        $approvalStatus = $poTotal > $approvalThreshold ? 'Pending Approval' : 'Not Required';
+        $nextNumber = (int) $database->query(
+            "SELECT COALESCE(MAX(CAST(SUBSTRING(po_ref, 4) AS UNSIGNED)), 0) + 1 FROM purchase_orders"
+        )->fetchColumn();
+        $poRef = 'PO-' . str_pad((string) $nextNumber, 4, '0', STR_PAD_LEFT);
+
+        $database->beginTransaction();
+        $statement = $database->prepare(
+            'INSERT INTO purchase_orders
+                (po_ref, supplier_id, order_date, expected_date, notes, total_amount, approval_status)
+             VALUES (:po_ref, :supplier_id, :order_date, :expected_date, :notes, :total_amount, :approval_status)'
+        );
+        $statement->execute([
+            'po_ref' => $poRef,
+            'supplier_id' => $supplierId,
+            'order_date' => $orderDate,
+            'expected_date' => $expectedDate,
+            'notes' => $notes,
+            'total_amount' => $poTotal,
+            'approval_status' => $approvalStatus,
+        ]);
+        $poId = (int) $database->lastInsertId();
+        $itemStatement = $database->prepare(
+            'INSERT INTO purchase_order_items (purchase_order_id, product_name, quantity, unit_cost, line_total)
+             VALUES (:po_id, :name, :qty, :cost, :line)'
+        );
+        foreach ($poItems as $poItem) {
+            $itemStatement->execute([
+                'po_id' => $poId,
+                'name' => $poItem['name'],
+                'qty' => $poItem['qty'],
+                'cost' => $poItem['cost'],
+                'line' => $poItem['line'],
+            ]);
+        }
+        $database->commit();
+
+        respond([
+            'success' => true,
+            'message' => $approvalStatus === 'Pending Approval'
+                ? 'Purchase order created. It is over Rs. ' . number_format($approvalThreshold) . ' so it needs Admin approval.'
+                : 'Purchase order created successfully.',
+            'po_ref' => $poRef,
+            'approval_status' => $approvalStatus,
+        ], 201);
+    }
+
+    // Purchase order actions: approve, reject, receive goods (or simple status change).
+    if ($resource === 'purchase_orders' && $id && $method === 'PATCH') {
+        $action = $body['action'] ?? null;
+
+        if ($action === 'approve' || $action === 'reject') {
+            $newApproval = $action === 'approve' ? 'Approved' : 'Rejected';
+            $newStatus = $action === 'approve' ? 'Pending' : 'Cancelled';
+            $statement = $database->prepare(
+                "UPDATE purchase_orders SET approval_status = :approval, status = :status
+                 WHERE id = :id AND approval_status = 'Pending Approval'"
+            );
+            $statement->execute(['approval' => $newApproval, 'status' => $newStatus, 'id' => $id]);
+            if ($statement->rowCount() === 0) {
+                respond(['success' => false, 'message' => 'Order was not found or is not waiting for approval.'], 404);
+            }
+            respond(['success' => true, 'message' => $action === 'approve' ? 'Purchase order approved.' : 'Purchase order rejected and cancelled.']);
+        }
+
+        if ($action === 'receive') {
+            $orderStatement = $database->prepare('SELECT status, approval_status FROM purchase_orders WHERE id = :id');
+            $orderStatement->execute(['id' => $id]);
+            $order = $orderStatement->fetch();
+            if (!$order) {
+                respond(['success' => false, 'message' => 'Purchase order was not found.'], 404);
+            }
+            if ($order['status'] !== 'Pending') {
+                respond(['success' => false, 'message' => 'Only pending orders can be received.'], 422);
+            }
+            if ($order['approval_status'] === 'Pending Approval') {
+                respond(['success' => false, 'message' => 'This order must be approved before it can be received.'], 422);
+            }
+
+            $idStatement = $database->prepare('SELECT id FROM purchase_order_items WHERE purchase_order_id = :id');
+            $idStatement->execute(['id' => $id]);
+            $validItemIds = array_map('intval', array_column($idStatement->fetchAll(), 'id'));
+
+            $rows = is_array($body['received_items'] ?? null) ? $body['received_items'] : [];
+            $received = [];
+            foreach ($rows as $row) {
+                $itemId = filter_var($row['item_id'] ?? null, FILTER_VALIDATE_INT);
+                $qty = filter_var($row['received_quantity'] ?? null, FILTER_VALIDATE_INT);
+                if ($itemId === false || $qty === false || $qty < 0 || !in_array($itemId, $validItemIds, true)) {
+                    respond(['success' => false, 'message' => 'Received quantities contain invalid values.'], 422);
+                }
+                $received[$itemId] = $qty;
+            }
+            if (count($received) !== count($validItemIds)) {
+                respond(['success' => false, 'message' => 'Enter a received quantity for every item.'], 422);
+            }
+
+            $database->beginTransaction();
+            $itemUpdate = $database->prepare('UPDATE purchase_order_items SET received_quantity = :qty WHERE id = :item_id');
+            $stockUpdate = $database->prepare(
+                "UPDATE products p
+                 INNER JOIN purchase_order_items poi ON poi.product_name = p.name
+                 SET p.stock_quantity = p.stock_quantity + :qty
+                 WHERE poi.id = :item_id AND p.status = 'Active'"
+            );
+            foreach ($received as $itemId => $qty) {
+                $itemUpdate->execute(['qty' => $qty, 'item_id' => $itemId]);
+                if ($qty > 0) {
+                    $stockUpdate->execute(['qty' => $qty, 'item_id' => $itemId]);
+                }
+            }
+            $database->prepare("UPDATE purchase_orders SET status = 'Delivered', delivered_at = NOW() WHERE id = :id")
+                ->execute(['id' => $id]);
+            $database->commit();
+            respond(['success' => true, 'message' => 'Goods receipt saved, stock updated, and order marked delivered.']);
+        }
+
+        respond(['success' => false, 'message' => 'A valid action is required.'], 422);
+    }
+    // ===== END OF SUPPLIER MODULE ADDITIONS =====
+
     // Purchase order endpoints
     if ($resource === 'purchase_orders' && $method === 'GET') {
         try {
@@ -356,6 +634,7 @@ try {
             respond(['success' => false, 'message' => 'Could not save purchase order: ' . $e->getMessage()], 500);
         }
     }
+
 
     // Sales list endpoint: returns recent sales records with totals and basic summary data.
     if ($resource === 'sales' && $method === 'GET') {
