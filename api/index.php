@@ -224,6 +224,7 @@ try {
             'message'   => 'Login successful.',
             'user'      => [
                 'id'        => (int) $user['id'],
+                'username'  => $username,
                 'full_name' => $user['full_name'],
                 'role'      => $user['role'],
             ],
@@ -232,6 +233,22 @@ try {
 
     if (empty($_SESSION['user'])) {
         respond(['success' => false, 'message' => 'Please log in to access the system.'], 401);
+    }
+
+    $userRole = $_SESSION['user']['role'] ?? '';
+
+    // Role-based access control for API endpoints:
+    // 1. Admin-only resources: users and employees (Services & Staff)
+    if (in_array($resource, ['users', 'employees'], true) && $userRole !== 'Admin') {
+        respond(['success' => false, 'message' => 'Access denied: Admin privileges required.'], 403);
+    }
+
+    // 2. Cashier-restricted resources: Cashiers can only access Orders & POS (sales, read-only products/categories)
+    if ($userRole === 'Cashier') {
+        $cashierAllowed = ['sales', 'categories', 'products'];
+        if (!in_array($resource, $cashierAllowed, true) || ($resource === 'products' && $method !== 'GET')) {
+            respond(['success' => false, 'message' => 'Access denied: Cashiers can only access Orders & POS.'], 403);
+        }
     }
 
     // Category lookup endpoint: returns the available inventory categories.
