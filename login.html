@@ -210,9 +210,22 @@
         const result = await response.json();
 
         if (result.success) {
+          const user = result.user || {};
+          try { sessionStorage.setItem('bookwise_user', JSON.stringify(user)); } catch (_) {}
+          try { localStorage.setItem('bookwise_user', JSON.stringify(user)); } catch (_) {}
           showFeedback('Login successful. Redirecting…', 'success');
+          
+          let target = 'financials.html';
+          if (user.role === 'Cashier') {
+            target = 'orders-pos.html';
+          } else if (user.role === 'Staff') {
+            target = 'inventory.html';
+          } else {
+            target = 'financials.html';
+          }
+
           setTimeout(function () {
-            window.location.href = 'financials.html';
+            window.location.href = target;
           }, 600);
         } else {
           showFeedback(result.message || 'Invalid username or password.', 'error');

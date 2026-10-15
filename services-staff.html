@@ -3,769 +3,414 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bookwise — Employee Management</title>
+<title>BOOKWISE — Services &amp; Staff</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-
-  :root{
-    --navy:#1c2740;
-    --navy-dark:#141c30;
-    --maroon:#8a3b3b;
-    --maroon-light:#a34b4b;
-    --page-bg:#eeecf3;
-    --card-bg:#ffffff;
-    --border:#e2e0ea;
-    --text-dark:#1c2740;
-    --text-gray:#7a7d8c;
-    --text-light-gray:#a7a9b6;
-    --green:#3f8f5f;
-    --green-bg:#e6f4ea;
-    --orange:#b8823a;
-    --orange-bg:#f8ecda;
-    --gray-badge:#8a8d99;
-    --gray-badge-bg:#eceef2;
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
   }
-
-  body{
-    font-family: "Segoe UI", Arial, sans-serif;
-    background:var(--page-bg);
-    color:var(--text-dark);
-    display:flex;
-    min-height:100vh;
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(18, 32, 58, 0.48);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    padding: 16px;
   }
-
-  /* ---------- Sidebar ---------- */
-  .sidebar{
-    width:230px;
-    background:linear-gradient(180deg,var(--navy) 0%, var(--navy-dark) 100%);
-    color:#fff;
-    display:flex;
-    flex-direction:column;
-    flex-shrink:0;
+  .modal-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
   }
-
-  .brand{
-    display:flex;
-    align-items:center;
-    gap:10px;
-    padding:24px 20px 20px 20px;
+  .modal {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    width: min(520px, 100%);
+    padding: 26px 28px;
+    box-shadow: 0 24px 70px rgba(18, 32, 58, 0.25);
+    transform: translateY(8px);
+    transition: transform 0.2s ease;
   }
-  .brand-mark{
-    width:34px;height:34px;border-radius:8px;
-    background:var(--maroon);
-    display:flex;align-items:center;justify-content:center;
-    font-family:Georgia, "Times New Roman", serif;
-    font-weight:700;font-size:17px;
-    flex-shrink:0;
+  .modal-overlay.open .modal {
+    transform: translateY(0);
   }
-  .brand-text h1{
-    font-family:Georgia, "Times New Roman", serif;
-    font-size:17px;
-    font-weight:700;
-    letter-spacing:0.2px;
+  .modal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 4px;
   }
-  .brand-text p{
-    font-size:8.5px;
-    letter-spacing:1px;
-    color:#8b91a8;
-    margin-top:2px;
+  .modal h3 {
+    font-family: 'Fraunces', serif;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--navy-deep);
+    margin: 0;
   }
-
-  nav{
-    margin-top:10px;
-    padding:0 12px;
-    flex:1;
+  .modal-close {
+    all: unset;
+    cursor: pointer;
+    font-size: 24px;
+    line-height: 1;
+    color: var(--muted);
+    transition: color 0.15s;
   }
-  .nav-item{
-    display:flex;
-    align-items:center;
-    gap:12px;
-    padding:12px 14px;
-    border-radius:8px;
-    color:#c3c7d6;
-    text-decoration:none;
-    font-size:13.5px;
-    margin-bottom:4px;
-    transition:background .15s ease;
-    cursor:pointer;
+  .modal-close:hover {
+    color: var(--burgundy);
   }
-  .nav-item:hover{ background:rgba(255,255,255,0.06); color:#fff; }
-  .nav-item .num{
-    font-size:11px;
-    color:#7d81a0;
-    width:16px;
-    flex-shrink:0;
+  .modal-sub {
+    font-size: 13px;
+    color: var(--muted);
+    margin: 4px 0 18px 0;
   }
-  .nav-item.active{
-    background:var(--maroon);
-    color:#fff;
-    font-weight:600;
+  .modal-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
   }
-  .nav-item.active .num{ color:#e9c9c9; }
-
-  .sidebar-footer{
-    padding:16px 18px 20px 18px;
-    border-top:1px solid rgba(255,255,255,0.08);
-    display:flex;
-    align-items:center;
-    gap:10px;
+  .modal-actions-right {
+    display: flex;
+    gap: 10px;
+    margin-left: auto;
   }
-  .avatar{
-    width:34px;height:34px;border-radius:50%;
-    background:#c98a3a;
-    display:flex;align-items:center;justify-content:center;
-    font-size:12px;font-weight:700;color:#fff;
-    flex-shrink:0;
+  .status {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 20px;
+    letter-spacing: .3px;
   }
-  .sidebar-footer .who p:first-child{ font-size:12.5px; font-weight:600; }
-  .sidebar-footer .who p:last-child{ font-size:11px; color:#8b91a8; }
-
-  /* ---------- Main ---------- */
-  main{
-    flex:1;
-    padding:32px 40px 40px 40px;
-    overflow-x:auto;
+  .status.active {
+    background: #E8F0E6;
+    color: var(--sage);
   }
-
-  .top-row{
-    display:flex;
-    justify-content:space-between;
-    align-items:flex-start;
-    margin-bottom:26px;
-    gap:20px;
+  .status.leave {
+    background: #FBF1D6;
+    color: #9A7B12;
   }
-  .top-row h2{
-    font-family:Georgia, "Times New Roman", serif;
-    font-size:28px;
-    font-weight:700;
-    color:var(--text-dark);
-    margin-bottom:6px;
+  .status.inactive {
+    background: #EFEBE1;
+    color: var(--muted);
   }
-  .top-row .subtitle{
-    font-size:13px;
-    color:var(--text-gray);
-    max-width:520px;
-    line-height:1.5;
+  .shift-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
   }
-  .top-actions{
-    display:flex;
-    gap:10px;
-    flex-shrink:0;
+  .shift-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    background: #FCFAF4;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    transition: border-color 0.15s;
   }
-  .btn{
-    padding:10px 16px;
-    border-radius:8px;
-    font-size:12.5px;
-    font-weight:600;
-    border:1px solid transparent;
-    cursor:pointer;
-    white-space:nowrap;
-    font-family:inherit;
+  .shift-card:hover {
+    border-color: var(--navy);
   }
-  .btn-outline{
-    background:#fff;
-    border:1px solid var(--border);
-    color:var(--text-dark);
+  .shift-card .who {
+    font-weight: 600;
+    color: var(--navy-deep);
+    font-size: 14px;
   }
-  .btn-outline:hover{ background:#f7f7fa; }
-  .btn-filled{
-    background:var(--navy);
-    color:#fff;
+  .shift-card .meta {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 3px;
+    font-family: 'Inter', sans-serif;
   }
-  .btn-filled:hover{ background:var(--navy-dark); }
-
-  /* ---------- Stat cards ---------- */
-  .stats{
-    display:grid;
-    grid-template-columns:repeat(4, 1fr);
-    gap:16px;
-    margin-bottom:22px;
+  .shift-remove {
+    all: unset;
+    cursor: pointer;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--burgundy);
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    transition: all 0.15s;
   }
-  .stat-card{
-    background:var(--card-bg);
-    border:1px solid var(--border);
-    border-radius:10px;
-    padding:18px 18px 16px 18px;
+  .shift-remove:hover {
+    border-color: #f5dedb;
+    background: #fdf2f0;
   }
-  .stat-card .label{
-    font-size:10.5px;
-    letter-spacing:0.6px;
-    text-transform:uppercase;
-    color:var(--text-gray);
-    margin-bottom:10px;
+  .shift-empty {
+    padding: 30px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
   }
-  .stat-card .value{
-    font-family:Georgia, "Times New Roman", serif;
-    font-size:26px;
-    font-weight:700;
-    color:var(--text-dark);
-    margin-bottom:6px;
+  .empty-row td {
+    text-align: center;
+    color: var(--muted);
+    padding: 36px 20px;
+    font-size: 13px;
   }
-  .stat-card .foot{
-    font-size:11.5px;
-    color:var(--text-light-gray);
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--navy-deep);
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    box-shadow: 0 10px 30px rgba(18, 32, 58, 0.28);
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.2s ease;
+    pointer-events: none;
+    z-index: 99999;
   }
-
-  /* ---------- Tabs ---------- */
-  .tabs{
-    display:flex;
-    gap:8px;
-    margin-bottom:18px;
-    flex-wrap:wrap;
-  }
-  .tab{
-    padding:9px 16px;
-    border-radius:20px;
-    font-size:12.5px;
-    background:#fff;
-    border:1px solid var(--border);
-    color:var(--text-gray);
-    cursor:pointer;
-  }
-  .tab.active{
-    background:var(--navy);
-    color:#fff;
-    border-color:var(--navy);
-  }
-
-  /* ---------- Directory panel ---------- */
-  .panel{
-    background:var(--card-bg);
-    border:1px solid var(--border);
-    border-radius:12px;
-    padding:22px 22px 8px 22px;
-  }
-  .panel-head{
-    display:flex;
-    justify-content:space-between;
-    align-items:flex-start;
-    margin-bottom:16px;
-    gap:16px;
-  }
-  .panel-head h3{
-    font-family:Georgia, "Times New Roman", serif;
-    font-size:17px;
-    margin-bottom:4px;
-  }
-  .panel-head p{
-    font-size:12px;
-    color:var(--text-gray);
-  }
-  .search-box{
-    padding:9px 14px;
-    border-radius:8px;
-    border:1px solid var(--border);
-    font-size:12px;
-    color:var(--text-dark);
-    background:#f7f7fa;
-    white-space:nowrap;
-    outline:none;
-    font-family:inherit;
-    min-width:200px;
-  }
-  .search-box::placeholder{ color:var(--text-light-gray); }
-
-  table{
-    width:100%;
-    border-collapse:collapse;
-  }
-  thead th{
-    text-align:left;
-    font-size:10.5px;
-    letter-spacing:0.6px;
-    text-transform:uppercase;
-    color:var(--text-light-gray);
-    padding:10px 8px;
-    border-bottom:1px solid var(--border);
-    font-weight:600;
-  }
-  tbody td{
-    padding:16px 8px;
-    font-size:13px;
-    border-bottom:1px solid var(--border);
-    color:var(--text-dark);
-  }
-  tbody tr:last-child td{ border-bottom:none; }
-  .muted{ color:var(--text-gray); }
-  .empty-row td{
-    text-align:center;
-    color:var(--text-light-gray);
-    padding:26px 8px;
-    font-size:12.5px;
-  }
-
-  .status{
-    display:inline-block;
-    padding:4px 12px;
-    border-radius:14px;
-    font-size:11px;
-    font-weight:600;
-    border:none;
-    cursor:default;
-    font-family:inherit;
-  }
-  .status.active{ background:var(--green-bg); color:var(--green); }
-  .status.leave{ background:var(--orange-bg); color:var(--orange); }
-  .status.inactive{ background:var(--gray-badge-bg); color:var(--gray-badge); }
-
-  .edit-btn{
-    padding:6px 14px;
-    border-radius:6px;
-    border:1px solid var(--border);
-    background:#fff;
-    font-size:11.5px;
-    color:var(--text-dark);
-    cursor:pointer;
-    font-family:inherit;
-  }
-  .edit-btn:hover{ background:#f7f7fa; }
-
-  .section-label{
-    font-family:Georgia, "Times New Roman", serif;
-    font-size:17px;
-    margin:26px 0 14px 2px;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-  }
-
-  .shift-list{
-    display:flex;
-    flex-direction:column;
-    gap:10px;
-  }
-  .shift-card{
-    background:var(--card-bg);
-    border:1px solid var(--border);
-    border-radius:10px;
-    padding:14px 18px;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:12px;
-  }
-  .shift-card .who{ font-size:13px; font-weight:600; }
-  .shift-card .meta{ font-size:11.5px; color:var(--text-gray); margin-top:2px; }
-  .shift-remove{
-    background:none;
-    border:none;
-    color:var(--text-light-gray);
-    cursor:pointer;
-    font-size:13px;
-    padding:4px 8px;
-  }
-  .shift-remove:hover{ color:var(--maroon); }
-  .shift-empty{
-    background:var(--card-bg);
-    border:1px dashed var(--border);
-    border-radius:10px;
-    padding:20px;
-    text-align:center;
-    color:var(--text-light-gray);
-    font-size:12.5px;
-  }
-
-  /* ---------- Modal ---------- */
-  .modal-overlay{
-    position:fixed;
-    inset:0;
-    background:rgba(20,24,40,0.45);
-    display:none;
-    align-items:flex-start;
-    justify-content:center;
-    padding:40px 20px;
-    overflow-y:auto;
-    z-index:100;
-  }
-  .modal-overlay.open{ display:flex; }
-  .modal{
-    background:#fff;
-    border-radius:12px;
-    width:100%;
-    max-width:440px;
-    padding:26px 26px 22px 26px;
-    box-shadow:0 20px 50px rgba(20,24,40,0.25);
-  }
-  .modal h3{
-    font-family:Georgia, "Times New Roman", serif;
-    font-size:18px;
-    margin-bottom:4px;
-  }
-  .modal .modal-sub{
-    font-size:12px;
-    color:var(--text-gray);
-    margin-bottom:18px;
-  }
-  .field{ margin-bottom:14px; }
-  .field label{
-    display:block;
-    font-size:11px;
-    text-transform:uppercase;
-    letter-spacing:0.5px;
-    color:var(--text-gray);
-    margin-bottom:6px;
-    font-weight:600;
-  }
-  .field input, .field select{
-    width:100%;
-    padding:9px 12px;
-    border-radius:7px;
-    border:1px solid var(--border);
-    font-size:13px;
-    font-family:inherit;
-    color:var(--text-dark);
-    background:#fff;
-  }
-  .field input:focus, .field select:focus{
-    outline:2px solid var(--navy);
-    outline-offset:1px;
-  }
-  .field-row{ display:flex; gap:12px; }
-  .field-row .field{ flex:1; }
-  .modal-actions{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    margin-top:20px;
-    gap:10px;
-  }
-  .modal-actions-right{ display:flex; gap:10px; }
-  .btn-danger{
-    background:#fff;
-    border:1px solid var(--maroon);
-    color:var(--maroon);
-  }
-  .btn-danger:hover{ background:#fbeeee; }
-  .btn-ghost{
-    background:none;
-    border:1px solid var(--border);
-    color:var(--text-gray);
-  }
-  .btn-ghost:hover{ background:#f7f7fa; }
-
-  .toast{
-    position:fixed;
-    bottom:24px;
-    left:50%;
-    transform:translateX(-50%) translateY(20px);
-    background:var(--navy);
-    color:#fff;
-    padding:12px 20px;
-    border-radius:8px;
-    font-size:12.5px;
-    opacity:0;
-    pointer-events:none;
-    transition:opacity .2s ease, transform .2s ease;
-    z-index:200;
-  }
-  .toast.show{
-    opacity:1;
-    transform:translateX(-50%) translateY(0);
-  }
-
-  @media (max-width: 1000px){
-    .stats{ grid-template-columns:repeat(2,1fr); }
-  }
-
-  @media (max-width: 1000px) {
-    body {
-        min-width: 1000px;
-    }
-
-    main {
-        min-width: 770px;
-    }
-}
-
-  /* Align the staff module with the shared Bookwise console theme. */
-  :root{
-    --navy:#1B2A4A;
-    --navy-deep:#12203A;
-    --cream:#F7F3EA;
-    --paper:#FFFFFF;
-    --burgundy:#7A2E2E;
-    --burgundy-deep:#5E2222;
-    --sage:#4F6F52;
-    --gold:#C9A227;
-    --ink:#232323;
-    --muted:#6b6459;
-    --line:#E4DDCB;
-    --radius:10px;
-  }
-  body{font-family:'Inter',sans-serif;background:var(--cream);color:var(--ink);display:block;min-height:100vh;}
-  .sidebar{width:250px;background:var(--navy);padding:28px 18px;position:fixed;top:0;bottom:0;left:0;height:100vh;}
-  .brand{padding:0 8px;margin-bottom:6px;}
-  .brand-mark{background:var(--gold);color:var(--navy-deep);font-family:'Fraunces',serif;}
-  .brand-text h1{font-family:'Fraunces',serif;}
-  .brand-text p{color:#9aa7c2;}
-  nav{margin-top:0;padding:0;gap:3px;}
-  .nav-item{color:#c7cfe3;font-size:14px;margin-bottom:0;}
-  .nav-item .num{color:#6f7ea3;font-family:'JetBrains Mono',monospace;}
-  .nav-item:hover{background:rgba(255,255,255,.06);color:#fff;}
-  .nav-item.active{background:var(--burgundy);color:#fff;}
-  .nav-item.active .num{color:#ffd7d7;}
-  .sidebar-footer{padding:16px 0 0;border-top-color:rgba(255,255,255,.1);}
-  .avatar{background:var(--gold);color:var(--navy-deep);}
-  .sidebar-footer .who p:last-child{color:#6f7ea3;}
-  main{margin-left:250px;max-width:1180px;padding:32px 40px 60px;overflow-x:visible;}
-  .top-row h2,.section-label,.panel-head h3,.modal h3{font-family:'Fraunces',serif;color:var(--navy-deep);}
-  .top-row h2{font-size:32px;color:var(--navy-deep);}
-  .top-row .subtitle,.panel-head p{color:var(--muted);}
-  .btn-filled{background:var(--burgundy);}
-  .btn-filled:hover{background:var(--burgundy-deep);}
-  .btn-outline{background:transparent;border-color:var(--line);color:var(--navy);}
-  .btn-outline:hover{background:var(--paper);border-color:var(--navy);}
-  .stat-card,.panel,.shift-card,.shift-empty{background:var(--paper);border-color:var(--line);}
-  .stat-card{border-radius:var(--radius);}
-  .stat-card .label,.panel-head p,.field label{color:var(--muted);}
-  .stat-card .value{font-family:'Fraunces',serif;color:var(--navy-deep);}
-  .stat-card .foot{color:var(--muted);}
-  .tab{background:var(--paper);border-color:var(--line);color:var(--muted);}
-  .tab.active{background:var(--navy);border-color:var(--navy);}
-  table th{color:var(--muted);border-color:var(--line);}
-  table td{border-color:#f0ebdd;}
-  .edit-btn{background:var(--paper);border-color:var(--line);color:var(--muted);padding:5px 9px;border-radius:6px;border:1px solid var(--line);cursor:pointer;font-size:12px;transition:all .15s ease;}
-  .edit-btn:hover{border-color:var(--navy);color:var(--navy);}
-  .edit-btn.danger-btn{color:var(--burgundy);border-color:#f5dedb;}
-  .edit-btn.danger-btn:hover{border-color:var(--burgundy);color:var(--burgundy-deep);background:#fdf2f0;}
-  .field input,.field select,.search-box{border-color:var(--line);background:#fcfaf4;color:var(--ink);}
-  .status.active{background:#e8f0e6;color:var(--sage);}
-  .status.leave{background:#fbf1d6;color:#9a7b12;}
-  .status.inactive{background:#efebe1;color:var(--muted);}
-  .modal-overlay{background:rgba(18,32,58,.48);}
-  .modal{background:var(--paper);border-color:var(--line);}
-  @media(max-width:900px){
-    body{min-width:0;}
-    .sidebar{position:relative;width:100%;height:auto;}
-    main{margin-left:0;padding:24px 18px 44px;}
-    .stats{grid-template-columns:repeat(2,1fr);}
-  }
-  @media(max-width:600px){
-    .top-row{flex-direction:column;align-items:flex-start;}
-    .stats{grid-template-columns:1fr;}
-  }
-  /* Final shared-theme overrides for the legacy staff markup. */
-  body{background:var(--cream)!important;color:var(--ink)!important;font-family:'Inter',sans-serif!important;display:block!important;min-width:0!important;}
-  .sidebar{background:var(--navy)!important;width:250px!important;position:fixed!important;left:0!important;top:0!important;bottom:0!important;height:100vh!important;padding:28px 18px!important;}
-  .brand-mark{background:var(--gold)!important;color:var(--navy-deep)!important;}
-  .nav-item{display:flex!important;width:100%!important;background:transparent!important;color:#c7cfe3!important;text-decoration:none!important;}
-  .nav-item:hover{background:rgba(255,255,255,.06)!important;color:#fff!important;}
-  .nav-item.active{background:var(--burgundy)!important;color:#fff!important;}
-  .nav-item.active .num{color:#ffd7d7!important;}
-  main{display:block!important;margin-left:250px!important;max-width:1180px!important;min-width:0!important;padding:32px 40px 60px!important;background:var(--cream)!important;}
-  .top-row h2{font-family:'Fraunces',serif!important;color:var(--navy-deep)!important;}
-  .btn-filled{background:var(--burgundy)!important;}
-  .btn-outline{background:transparent!important;color:var(--navy)!important;border-color:var(--line)!important;}
-  .stat-card,.panel,.shift-card,.shift-empty,.modal{background:var(--paper)!important;border-color:var(--line)!important;}
-  .stat-card .value,.panel-head h3,.section-label,.modal h3{font-family:'Fraunces',serif!important;color:var(--navy-deep)!important;}
-  .tab{background:var(--paper)!important;border-color:var(--line)!important;color:var(--muted)!important;}
-  .tab.active{background:var(--navy)!important;border-color:var(--navy)!important;color:#fff!important;}
-  .field input,.field select,.search-box{background:#fcfaf4!important;border-color:var(--line)!important;}
-  @media(max-width:900px){
-    .sidebar{position:relative!important;width:100%!important;height:auto!important;}
-    main{margin-left:0!important;padding:24px 18px 44px!important;}
+  .toast.show {
+    opacity: 1;
+    transform: translateY(0);
   }
 </style>
 </head>
 <body>
-
+<div class="app">
+  <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="brand">
       <div class="brand-mark">B</div>
-      <div class="brand-text">
-        <h1>Bookwise</h1>
-        <p>ONLINE BOOK SHOP CONSOLE</p>
-      </div>
+      <div class="brand-name">Bookwise</div>
     </div>
-
-    <nav>
-      <a href="user-management.html" class="nav-item"><span class="num">01</span>User Management</a>
-      <a href="inventory.html" class="nav-item"><span class="num">02</span>Inventory</a>
-      <a href="suppliers.html" class="nav-item"><span class="num">03</span>Suppliers</a>
-      <a href="orders-pos.html" class="nav-item"><span class="num">04</span>Orders &amp; POS</a>
-      <a href="financials.html" class="nav-item"><span class="num">05</span>Financials</a>
-      <a href="services-staff.html" class="nav-item active"><span class="num">06</span>Services &amp; Staff</a>
-    </nav>
-
-    <div class="sidebar-footer">
-      <div class="avatar">TP</div>
+    <div class="brand-sub">Minre Book Shop · Console</div>
+    <ul class="nav" id="nav">
+      <li class=""><a href="user-management.html"><span class="num">01</span> User Management</a></li>
+      <li class=""><a href="inventory.html"><span class="num">02</span> Inventory</a></li>
+      <li class=""><a href="suppliers.html"><span class="num">03</span> Suppliers</a></li>
+      <li class=""><a href="orders-pos.html"><span class="num">04</span> Orders &amp; POS</a></li>
+      <li class=""><a href="financials.html"><span class="num">05</span> Financials</a></li>
+      <li class="active"><a href="services-staff.html"><span class="num">06</span> Services &amp; Staff</a></li>
+    </ul>
+    <div class="sidebar-foot">
       <div class="who">
-        <p>H M T N Perera</p>
-        <p>Admin</p>
+        <div class="avatar">TP</div>
+        <div>H M T N Perera<br><span class="role-label">Admin</span></div>
       </div>
     </div>
   </aside>
 
-  <main>
-    <div class="top-row">
-      <div>
-        <h2>Employee Management</h2>
-        <p class="subtitle">Maintain employee records, manage roles and shifts, and track staff performance.</p>
-      </div>
-      <div class="top-actions">
-        <button class="btn btn-outline" id="btn-new-shift">+ New Shift Schedule</button>
-        <button class="btn btn-filled" id="btn-add-employee">+ Add Employee</button>
-      </div>
-    </div>
+  <!-- MAIN -->
+  <main class="main">
+    <section class="view active" id="v6">
 
-    <div class="stats">
-      <div class="stat-card">
-        <div class="label">TOTAL EMPLOYEES</div>
-        <div class="value" id="stat-total">24</div>
-        <div class="foot" id="stat-total-foot">21 active · 3 inactive</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">ON SHIFT TODAY</div>
-        <div class="value" id="stat-onshift">9</div>
-        <div class="foot">Across all branches</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">PAYROLL (MTD)</div>
-        <div class="value">Rs. 486K</div>
-        <div class="foot">Paid to staff</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">PENDING LEAVE REQUESTS</div>
-        <div class="value" id="stat-leave">3</div>
-        <div class="foot">Awaiting approval</div>
-      </div>
-    </div>
-
-    <div class="tabs" id="tabs">
-      <div class="tab active" data-filter="all">All Employees</div>
-      <div class="tab" data-filter="cashiers">Cashiers</div>
-      <div class="tab" data-filter="inventory">Inventory Staff</div>
-      <div class="tab" data-filter="management">Management</div>
-      <div class="tab" data-filter="inactive">Inactive</div>
-    </div>
-
-    <div class="panel">
-      <div class="panel-head">
+      <div class="topbar">
         <div>
-          <h3>Employee Directory</h3>
-          <p id="directory-count">24 employees · sorted by name</p>
+          <div class="crumb">Services &amp; Staff · Minre Book Shop</div>
+          <h1>Employee Management</h1>
+          <p class="lede">Maintain employee records, manage roles and shifts, and track staff performance.</p>
         </div>
-        <input type="text" class="search-box" id="search-box" placeholder="Search by employee name">
+        <div class="top-actions">
+          <button type="button" class="btn btn-ghost" id="btn-new-shift">+ New Shift Schedule</button>
+          <button type="button" class="btn btn-primary" id="btn-add-employee">+ Add Employee</button>
+        </div>
       </div>
 
-      <table>
-        <thead>
-          <tr>
-            <th>EMPLOYEE</th>
-            <th>ROLE</th>
-            <th>PHONE</th>
-            <th>DEPARTMENT</th>
-            <th>STATUS</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="employee-tbody">
-        </tbody>
-      </table>
-    </div>
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-label">Total Employees</div>
+          <div class="stat-val" id="stat-total">0</div>
+          <div class="stat-note" id="stat-total-foot">0 active · 0 inactive</div>
+        </div>
+        <div class="stat alt">
+          <div class="stat-label">On Shift Today</div>
+          <div class="stat-val" id="stat-onshift">9</div>
+          <div class="stat-note">Across all branches</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Payroll (MTD)</div>
+          <div class="stat-val">Rs. 486K</div>
+          <div class="stat-note">Paid to staff</div>
+        </div>
+        <div class="stat warn">
+          <div class="stat-label">Pending Leave Requests</div>
+          <div class="stat-val" id="stat-leave">0</div>
+          <div class="stat-note down">Awaiting approval</div>
+        </div>
+      </div>
 
-    <div class="section-label">
-      <span>Shift Schedule</span>
-    </div>
-    <div class="shift-list" id="shift-list"></div>
+      <div class="tag-row tabs" id="tabs">
+        <button type="button" class="tag tab active" data-filter="all">All Employees</button>
+        <button type="button" class="tag tab" data-filter="cashiers">Cashiers</button>
+        <button type="button" class="tag tab" data-filter="inventory">Inventory Staff</button>
+        <button type="button" class="tag tab" data-filter="management">Management</button>
+        <button type="button" class="tag tab" data-filter="inactive">Inactive</button>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h3>Employee Directory</h3>
+            <div class="sub" id="directory-count">Loading employees…</div>
+          </div>
+          <div class="search">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted)"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" id="search-box" placeholder="Search by employee name">
+          </div>
+        </div>
+
+        <div class="panel-body flush" style="overflow-x:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>EMPLOYEE</th>
+                <th>ROLE</th>
+                <th>PHONE</th>
+                <th>DEPARTMENT</th>
+                <th>STATUS</th>
+                <th style="text-align:right">ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody id="employee-tbody">
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:28px">
+        <div class="panel-head">
+          <div>
+            <h3>Shift Schedule</h3>
+            <div class="sub">Weekly working hours &amp; staff roster</div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="shift-grid" id="shift-list"></div>
+        </div>
+      </div>
+
+    </section>
   </main>
+</div>
 
-  <!-- Add / Edit Employee Modal -->
-  <div class="modal-overlay" id="employee-modal-overlay">
-    <div class="modal">
-      <h3 id="employee-modal-title">Add Employee</h3>
-      <p class="modal-sub" id="employee-modal-sub">Enter the employee's details below.</p>
-      <form id="employee-form">
-        <div class="field">
-          <label for="f-name">Full name</label>
-          <input type="text" id="f-name" required placeholder="e.g. A B Kumara">
-        </div>
-        <div class="field-row">
-          <div class="field">
-            <label for="f-role">Role</label>
-            <input type="text" id="f-role" required placeholder="e.g. Cashier">
-          </div>
-          <div class="field">
-            <label for="f-phone">Phone</label>
-            <input type="text" id="f-phone" required placeholder="e.g. 077 123 4567">
-          </div>
-        </div>
-        <div class="field-row">
-          <div class="field">
-            <label for="f-department">Department</label>
-            <select id="f-department">
-              <option>Management</option>
-              <option>Orders & POS</option>
-              <option>Inventory</option>
-              <option>Financials</option>
-              <option>Suppliers</option>
-              <option>Services & Staff</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="f-status">Status</label>
-            <select id="f-status">
-              <option value="active">Active</option>
-              <option value="leave">On Leave</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
-        </div>
-        <div class="modal-actions">
-          <button type="button" class="btn btn-danger" id="btn-delete-employee" style="display:none;">Delete</button>
-          <div class="modal-actions-right" style="margin-left:auto;">
-            <button type="button" class="btn btn-ghost" id="btn-cancel-employee">Cancel</button>
-            <button type="submit" class="btn btn-filled" id="btn-save-employee">Add Employee</button>
-          </div>
-        </div>
-      </form>
+<!-- Add / Edit Employee Modal -->
+<div class="modal-overlay" id="employee-modal-overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <div class="crumb">Staff Roster · Directory</div>
+        <h3 id="employee-modal-title">Add Employee</h3>
+      </div>
+      <button type="button" class="modal-close" onclick="document.getElementById('btn-cancel-employee').click()" aria-label="Close dialog">&times;</button>
     </div>
-  </div>
-
-  <!-- New Shift Modal -->
-  <div class="modal-overlay" id="shift-modal-overlay">
-    <div class="modal">
-      <h3>New Shift Schedule</h3>
-      <p class="modal-sub">Assign a shift to an employee.</p>
-      <form id="shift-form">
+    <p class="modal-sub" id="employee-modal-sub">Enter the employee's details below.</p>
+    <form id="employee-form">
+      <div class="field" style="margin-bottom:14px">
+        <label for="f-name">Full name</label>
+        <input type="text" id="f-name" required placeholder="e.g. A B Kumara">
+      </div>
+      <div class="field-row" style="margin-bottom:14px">
         <div class="field">
-          <label for="s-employee">Employee</label>
-          <select id="s-employee" required></select>
+          <label for="f-role">Role</label>
+          <input type="text" id="f-role" required placeholder="e.g. Cashier">
         </div>
-        <div class="field-row">
-          <div class="field">
-            <label for="s-day">Day</label>
-            <select id="s-day">
-              <option>Monday</option>
-              <option>Tuesday</option>
-              <option>Wednesday</option>
-              <option>Thursday</option>
-              <option>Friday</option>
-              <option>Saturday</option>
-              <option>Sunday</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="s-time">Time</label>
-            <input type="text" id="s-time" required placeholder="e.g. 9:00 AM – 5:00 PM">
-          </div>
+        <div class="field">
+          <label for="f-phone">Phone</label>
+          <input type="text" id="f-phone" required placeholder="e.g. 077 123 4567">
         </div>
-        <div class="modal-actions">
-          <div class="modal-actions-right" style="margin-left:auto;">
-            <button type="button" class="btn btn-ghost" id="btn-cancel-shift">Cancel</button>
-            <button type="submit" class="btn btn-filled">Add Shift</button>
-          </div>
+      </div>
+      <div class="field-row" style="margin-bottom:14px">
+        <div class="field">
+          <label for="f-department">Department</label>
+          <select id="f-department">
+            <option>Management</option>
+            <option>Orders &amp; POS</option>
+            <option>Inventory</option>
+            <option>Financials</option>
+            <option>Suppliers</option>
+            <option>Services &amp; Staff</option>
+          </select>
         </div>
-      </form>
-    </div>
+        <div class="field">
+          <label for="f-status">Status</label>
+          <select id="f-status">
+            <option value="active">Active</option>
+            <option value="leave">On Leave</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost icon-btn danger" id="btn-delete-employee" style="display:none;padding:10px 16px;font-size:13px">Delete Employee</button>
+        <div class="modal-actions-right">
+          <button type="button" class="btn btn-ghost" id="btn-cancel-employee">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-employee">Add Employee</button>
+        </div>
+      </div>
+    </form>
   </div>
+</div>
 
-  <div class="toast" id="toast"></div>
+<!-- New Shift Modal -->
+<div class="modal-overlay" id="shift-modal-overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <div class="crumb">Shift Scheduling · Console</div>
+        <h3>New Shift Schedule</h3>
+      </div>
+      <button type="button" class="modal-close" onclick="document.getElementById('btn-cancel-shift').click()" aria-label="Close dialog">&times;</button>
+    </div>
+    <p class="modal-sub">Assign a shift to an employee.</p>
+    <form id="shift-form">
+      <div class="field" style="margin-bottom:14px">
+        <label for="s-employee">Employee</label>
+        <select id="s-employee" required></select>
+      </div>
+      <div class="field-row" style="margin-bottom:14px">
+        <div class="field">
+          <label for="s-day">Day</label>
+          <select id="s-day">
+            <option>Monday</option>
+            <option>Tuesday</option>
+            <option>Wednesday</option>
+            <option>Thursday</option>
+            <option>Friday</option>
+            <option>Saturday</option>
+            <option>Sunday</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="s-time">Time</label>
+          <input type="text" id="s-time" required placeholder="e.g. 9:00 AM – 5:00 PM">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <div class="modal-actions-right">
+          <button type="button" class="btn btn-ghost" id="btn-cancel-shift">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add Shift</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
 
 <script>
 (function(){
-  // This block stores the page state used for employee listing, shift scheduling, filters, and modal behavior.
   var employees = [];
   var shifts = [];
   var nextEmpId = 1;
@@ -774,7 +419,6 @@
   var searchTerm = "";
   var editingId = null;
 
-  // Element references for the employee directory, stats cards, and modal forms.
   var tbody = document.getElementById("employee-tbody");
   var shiftList = document.getElementById("shift-list");
   var directoryCount = document.getElementById("directory-count");
@@ -796,7 +440,6 @@
   var toastEl = document.getElementById("toast");
   var toastTimer = null;
 
-  // Shows a temporary toast message used for success/error feedback across the page.
   function showToast(msg){
     toastEl.textContent = msg;
     toastEl.classList.add("show");
@@ -804,7 +447,6 @@
     toastTimer = setTimeout(function(){ toastEl.classList.remove("show"); }, 2200);
   }
 
-  // Fetches all employee records from the backend API and refreshes the rendered directory.
   function loadEmployees(){
     return fetch("api/index.php?resource=employees")
       .then(function(response){ return response.json().then(function(result){ return { response: response, result: result }; }); })
@@ -816,21 +458,12 @@
       });
   }
 
-  // Builds initials from a full employee name for quick avatar-like display styling.
-  function initials(name){
-    var parts = name.trim().split(/\s+/);
-    if (parts.length === 1) return parts[0].slice(0,2).toUpperCase();
-    return (parts[0][0] + parts[parts.length-1][0]).toUpperCase();
-  }
-
-  // Converts backend status values into readable labels for the UI.
   function statusLabel(status){
     if (status === "active") return "Active";
     if (status === "leave") return "On Leave";
     return "Inactive";
   }
 
-  // Filters employees based on the selected tab (all, cashier, inventory, management, inactive).
   function matchesFilter(emp){
     if (activeFilter === "all") return true;
     if (activeFilter === "cashiers") return emp.role.toLowerCase().indexOf("cashier") !== -1;
@@ -840,15 +473,12 @@
     return true;
   }
 
-  // Checks whether a given employee matches the live search text entered in the UI.
   function matchesSearch(emp){
     if (!searchTerm) return true;
     return emp.name.toLowerCase().indexOf(searchTerm.toLowerCase()) !== -1;
   }
 
-  // Renders the employee table, directory summary, metric cards, and shift assignment options.
   function render(){
-    // Applies the selected filter and search phrases to the employee list before drawing the table.
     var visible = employees.filter(function(e){ return matchesFilter(e) && matchesSearch(e); });
 
     tbody.innerHTML = "";
@@ -865,21 +495,20 @@
         var tr = document.createElement("tr");
 
         var tdName = document.createElement("td");
+        tdName.className = "cell-strong";
         tdName.textContent = emp.name;
         tr.appendChild(tdName);
 
         var tdRole = document.createElement("td");
-        tdRole.className = "muted";
         tdRole.textContent = emp.role;
         tr.appendChild(tdRole);
 
         var tdPhone = document.createElement("td");
-        tdPhone.className = "muted";
+        tdPhone.className = "cell-mono";
         tdPhone.textContent = emp.phone;
         tr.appendChild(tdPhone);
 
         var tdDept = document.createElement("td");
-        tdDept.className = "muted";
         tdDept.textContent = emp.department;
         tr.appendChild(tdDept);
 
@@ -891,21 +520,28 @@
         tr.appendChild(tdStatus);
 
         var tdEdit = document.createElement("td");
+        tdEdit.style.textAlign = "right";
         tdEdit.style.whiteSpace = "nowrap";
 
+        var actionsWrap = document.createElement("div");
+        actionsWrap.className = "row-actions";
+        actionsWrap.style.justifyContent = "flex-end";
+
         var editBtn = document.createElement("button");
-        editBtn.className = "edit-btn";
+        editBtn.type = "button";
+        editBtn.className = "icon-btn";
         editBtn.textContent = "Edit";
         editBtn.addEventListener("click", function(){ openEditModal(emp.id); });
-        tdEdit.appendChild(editBtn);
+        actionsWrap.appendChild(editBtn);
 
         var delBtn = document.createElement("button");
-        delBtn.className = "edit-btn danger-btn";
-        delBtn.style.marginLeft = "6px";
+        delBtn.type = "button";
+        delBtn.className = "icon-btn danger";
         delBtn.textContent = "Delete";
         delBtn.addEventListener("click", function(){ deleteEmployee(emp.id, emp.name); });
-        tdEdit.appendChild(delBtn);
+        actionsWrap.appendChild(delBtn);
 
+        tdEdit.appendChild(actionsWrap);
         tr.appendChild(tdEdit);
 
         tbody.appendChild(tr);
@@ -914,7 +550,6 @@
 
     directoryCount.textContent = visible.length + (visible.length === 1 ? " employee" : " employees") + " · sorted by name";
 
-    // Updates summary statistics shown at the top of the staff page.
     var total = employees.length;
     var active = employees.filter(function(e){ return e.status === "active"; }).length;
     var inactive = employees.filter(function(e){ return e.status === "inactive"; }).length;
@@ -923,7 +558,6 @@
     statTotalFoot.textContent = active + " active · " + inactive + " inactive";
     statLeave.textContent = onLeave;
 
-    // Prepulates the shift form dropdown with the current employee list.
     shiftEmployeeSelect.innerHTML = "";
     employees.forEach(function(emp){
       var opt = document.createElement("option");
@@ -935,7 +569,6 @@
     renderShifts();
   }
 
-  // Draws the shift cards that appear in the schedule area for the current list of shifts.
   function renderShifts(){
     shiftList.innerHTML = "";
     if (shifts.length === 0){
@@ -960,6 +593,7 @@
       left.appendChild(meta);
 
       var removeBtn = document.createElement("button");
+      removeBtn.type = "button";
       removeBtn.className = "shift-remove";
       removeBtn.textContent = "Remove";
       removeBtn.addEventListener("click", function(){
@@ -974,23 +608,20 @@
     });
   }
 
-  // Handles tab switching for employee categories and updates the filter state.
   document.getElementById("tabs").addEventListener("click", function(e){
-    var tab = e.target.closest(".tab");
+    var tab = e.target.closest(".tag, .tab");
     if (!tab) return;
-    document.querySelectorAll(".tab").forEach(function(t){ t.classList.remove("active"); });
+    document.querySelectorAll("#tabs .tag, #tabs .tab").forEach(function(t){ t.classList.remove("active"); });
     tab.classList.add("active");
-    activeFilter = tab.getAttribute("data-filter");
+    activeFilter = tab.getAttribute("data-filter") || "all";
     render();
   });
 
-  // Re-renders the employee table every time the search box value changes.
   document.getElementById("search-box").addEventListener("input", function(e){
     searchTerm = e.target.value;
     render();
   });
 
-  // Opens the employee modal in add mode and resets the form fields.
   document.getElementById("btn-add-employee").addEventListener("click", function(){
     editingId = null;
     empModalTitle.textContent = "Add Employee";
@@ -1003,7 +634,6 @@
     document.getElementById("f-name").focus();
   });
 
-  // Fills the employee form with the selected employee for editing and opens the modal.
   function openEditModal(id){
     var emp = employees.find(function(e){ return e.id === id; });
     if (!emp) return;
@@ -1020,19 +650,16 @@
     empModalOverlay.classList.add("open");
   }
 
-  // Closes the employee form modal and clears the edit state.
   function closeEmployeeModal(){
     empModalOverlay.classList.remove("open");
     editingId = null;
   }
 
-  // Binds modal-close controls and click-outside behavior for the employee dialog.
   document.getElementById("btn-cancel-employee").addEventListener("click", closeEmployeeModal);
   empModalOverlay.addEventListener("click", function(e){
     if (e.target === empModalOverlay) closeEmployeeModal();
   });
 
-  // Saves a new employee or updates an existing one through the backend API.
   empForm.addEventListener("submit", function(e){
     e.preventDefault();
     var name = document.getElementById("f-name").value.trim();
@@ -1057,7 +684,6 @@
       }).catch(function(error){ showToast(error.message); });
   });
 
-  // Deletes an employee via the API and updates shifts and directory.
   function deleteEmployee(id, name){
     if (!confirm("Are you sure you want to delete employee \"" + name + "\"?")) return;
     fetch("api/index.php?resource=employees&id=" + id, { method: "DELETE" })
@@ -1071,7 +697,6 @@
       }).catch(function(error){ showToast(error.message); });
   }
 
-  // Deletes the selected employee through the modal.
   deleteBtn.addEventListener("click", function(){
     if (editingId === null) return;
     var emp = employees.find(function(e){ return e.id === editingId; });
@@ -1079,7 +704,6 @@
     deleteEmployee(editingId, empName);
   });
 
-  // Opens the shift form only when at least one employee exists in the directory.
   document.getElementById("btn-new-shift").addEventListener("click", function(){
     if (employees.length === 0){
       showToast("Add an employee first");
@@ -1089,14 +713,12 @@
     shiftModalOverlay.classList.add("open");
   });
 
-  // Closes the shift scheduling modal without submitting any data.
   function closeShiftModal(){ shiftModalOverlay.classList.remove("open"); }
   document.getElementById("btn-cancel-shift").addEventListener("click", closeShiftModal);
   shiftModalOverlay.addEventListener("click", function(e){
     if (e.target === shiftModalOverlay) closeShiftModal();
   });
 
-  // Saves a new shift assignment for the selected employee and updates the visible schedule card list.
   shiftForm.addEventListener("submit", function(e){
     e.preventDefault();
     var empId = parseInt(shiftEmployeeSelect.value, 10);
@@ -1111,7 +733,6 @@
     showToast("Shift scheduled");
   });
 
-  // Pressing Escape closes both modals to keep the page keyboard-friendly.
   document.addEventListener("keydown", function(e){
     if (e.key === "Escape"){
       closeEmployeeModal();
@@ -1119,7 +740,6 @@
     }
   });
 
-  // Initializes the page by loading employee data from the API and showing any connection errors via toast.
   loadEmployees().catch(function(error){
     showToast(error.message);
     render();
@@ -1127,7 +747,7 @@
 })();
 </script>
 
- <script src="notifications.js"></script>
+<script src="notifications.js"></script>
 <script src="auth.js"></script>
 </body>
 </html>
