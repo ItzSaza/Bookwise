@@ -157,8 +157,12 @@
       showFeedback('Please contact your system administrator or branch manager to reset your credentials.', 'error');
     });
 
-    function showFeedback(message, type) {
-      feedback.textContent = message;
+    function showFeedback(message, type, isHtml) {
+      if (isHtml) {
+        feedback.innerHTML = message;
+      } else {
+        feedback.textContent = message;
+      }
       feedback.className = 'login-feedback ' + type;
     }
 
@@ -170,6 +174,14 @@
     function resetBtn() {
       submitBtn.disabled = false;
       btnText.textContent = 'Sign In to Console';
+    }
+
+    if (window.location.protocol === 'file:') {
+      showFeedback(
+        'Warning: You opened this page directly via file://. Browser security blocks API requests from file URLs. Please open <a href="http://bookwise.local/login.html" style="text-decoration:underline;color:inherit;font-weight:700">http://bookwise.local/login.html</a> or <a href="http://localhost/login.html" style="text-decoration:underline;color:inherit;font-weight:700">http://localhost/login.html</a>.',
+        'error',
+        true
+      );
     }
 
     // Form submission — POST to the auth API endpoint
@@ -207,7 +219,15 @@
           resetBtn();
         }
       } catch (err) {
-        showFeedback('Could not reach the server. Please try again.', 'error');
+        if (window.location.protocol === 'file:') {
+          showFeedback(
+            'Cannot reach the server when opened via file://. Please open this page via <a href="http://bookwise.local/login.html" style="text-decoration:underline;color:inherit;font-weight:700">http://bookwise.local/login.html</a> or <a href="http://localhost/login.html" style="text-decoration:underline;color:inherit;font-weight:700">http://localhost/login.html</a> in your browser.',
+            'error',
+            true
+          );
+        } else {
+          showFeedback('Could not reach the server (' + (err.message || 'Network error') + '). Please ensure Apache is running on port 80.', 'error');
+        }
         resetBtn();
       }
     });

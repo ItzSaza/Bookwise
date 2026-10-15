@@ -21,9 +21,23 @@ function getDatabaseConnection(): PDO
         $database
     );
 
-    return new PDO($dsn, $username, $password, [
+    $options = [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         PDO::ATTR_EMULATE_PREPARES => false,
-    ]);
+    ];
+
+    try {
+        return new PDO($dsn, $username, (string)$password, $options);
+    } catch (PDOException $e) {
+        // Fallback for local environments where root has an empty password
+        if ((int)$e->getCode() === 1045 && (string)$password !== '') {
+            try {
+                return new PDO($dsn, $username, '', $options);
+            } catch (PDOException) {
+                throw $e;
+            }
+        }
+        throw $e;
+    }
 }

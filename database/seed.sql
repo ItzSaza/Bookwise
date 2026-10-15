@@ -5,20 +5,17 @@ USE bookwise;
 
 -- Passwords are bcrypt hashes generated with password_hash('password123', PASSWORD_BCRYPT, ['cost'=>12]).
 -- Default credentials for all seeded users: username / password123
--- Admin account: admin / admin123
---
--- IMPORTANT: Run database/setup_passwords.php once via CLI or browser after importing this seed
--- to generate real bcrypt hashes, OR update password_hash columns manually via MySQL.
--- The placeholder below uses PHP-generated hashes for development:
---   admin123    → $2y$12$Lov2TxO1RN3EG3v7HQZN0OXdByLXuSB/pZT8RrYLqlJj1C6Uv.3eC
---   password123 → $2y$12$Lov2TxO1RN3EG3v7HQZN0OO0pxEG13hzDblvkHRRkU9wnb8Gr7n2m
+-- Admin account: galappaththi / admin123
+-- Valid bcrypt hashes:
+--   admin123    → $2y$10$Ricl0Srwa5HEep6RhiJqROtHwRaGjUpefgSz.t6sBu8DFDPQDlI4O
+--   password123 → $2y$10$zhrjQyf10dabBLbCd2lire8.kQrfFZZ1zMhkunwTn5h980skuFok2
 INSERT INTO users (full_name, username, email, password_hash, role, status)
 VALUES
-    ('L G A S Galappaththi', 'galappaththi',      'galappaththi@bookwise.lk', '$2y$12$Lov2TxO1RN3EG3v7HQZN0OXdByLXuSB/pZT8RrYLqlJj1C6Uv.3eC', 'Admin',   'Active'),
-    ('H M O I N Weerakoon',  'weerakoon',  'weerakoon@bookwise.lk',    '$2y$12$Lov2TxO1RN3EG3v7HQZN0OO0pxEG13hzDblvkHRRkU9wnb8Gr7n2m', 'Staff',   'Active'),
-    ('M A P Perera',         'perera',     'perera.m@bookwise.lk',     '$2y$12$Lov2TxO1RN3EG3v7HQZN0OO0pxEG13hzDblvkHRRkU9wnb8Gr7n2m', 'Staff',   'Active'),
-    ('S D Edirimanna',       'edirimanna', 'edirimanna@bookwise.lk',   '$2y$12$Lov2TxO1RN3EG3v7HQZN0OO0pxEG13hzDblvkHRRkU9wnb8Gr7n2m', 'Admin',   'Inactive'),
-    ('Kasun Fernando',       'kasun',      'kasun.f@bookwise.lk',      '$2y$12$Lov2TxO1RN3EG3v7HQZN0OO0pxEG13hzDblvkHRRkU9wnb8Gr7n2m', 'Cashier', 'Active')
+    ('L G A S Galappaththi', 'galappaththi',      'galappaththi@bookwise.lk', '$2y$10$Ricl0Srwa5HEep6RhiJqROtHwRaGjUpefgSz.t6sBu8DFDPQDlI4O', 'Admin',   'Active'),
+    ('H M O I N Weerakoon',  'weerakoon',  'weerakoon@bookwise.lk',    '$2y$10$zhrjQyf10dabBLbCd2lire8.kQrfFZZ1zMhkunwTn5h980skuFok2', 'Staff',   'Active'),
+    ('M A P Perera',         'perera',     'perera.m@bookwise.lk',     '$2y$10$zhrjQyf10dabBLbCd2lire8.kQrfFZZ1zMhkunwTn5h980skuFok2', 'Staff',   'Active'),
+    ('S D Edirimanna',       'edirimanna', 'edirimanna@bookwise.lk',   '$2y$10$zhrjQyf10dabBLbCd2lire8.kQrfFZZ1zMhkunwTn5h980skuFok2', 'Admin',   'Inactive'),
+    ('Kasun Fernando',       'kasun',      'kasun.f@bookwise.lk',      '$2y$10$zhrjQyf10dabBLbCd2lire8.kQrfFZZ1zMhkunwTn5h980skuFok2', 'Cashier', 'Active')
 ON DUPLICATE KEY UPDATE
     full_name     = VALUES(full_name),
     username      = VALUES(username),
