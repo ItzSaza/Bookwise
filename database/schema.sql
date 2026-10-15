@@ -120,7 +120,7 @@ CREATE TABLE IF NOT EXISTS employees (
     INDEX idx_employees_department (department)
 ) ENGINE=InnoDB;
 
-//Financial Managemant/ ExpensesTable
+-- Financial Management / Expenses Table
 CREATE TABLE IF NOT EXISTS expenses (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     expense_ref VARCHAR(30) NOT NULL UNIQUE,
