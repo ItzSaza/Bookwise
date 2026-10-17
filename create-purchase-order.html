@@ -39,9 +39,9 @@
 
       <div class="topbar">
         <div>
-          <div class="crumb">Module 03 · Suppliers · Purchase Order</div>
-          <h1>New Purchase Order</h1>
-          <p class="lede">Select a supplier and list the items to be restocked. Inventory updates once the order is marked delivered.</p>
+          <div class="crumb" id="pageCrumb">Module 03 · Suppliers · Purchase Order</div>
+          <h1 id="pageHeading">New Purchase Order</h1>
+          <p class="lede" id="pageLede">Select a supplier and list the items to be restocked. Inventory updates once the order is marked delivered.</p>
         </div>
         <button class="btn btn-ghost" onclick="window.location.href='suppliers.html'">Back to Suppliers</button>
       </div>
@@ -58,7 +58,7 @@
 
           <div class="field">
             <label>PO Reference</label>
-            <input placeholder="Auto-generated on save" disabled>
+            <input id="poRefInput" placeholder="Auto-generated on save" disabled>
           </div>
 
           <div class="field">
@@ -133,6 +133,8 @@
     const saveBtn = document.getElementById('saveBtn');
     const messageEl = document.getElementById('poMessage');
 
+    const poId = new URLSearchParams(window.location.search).get('id');
+
     // Default the order date to today, matching how other Bookwise forms pre-fill dates.
     document.getElementById('poOrderDate').value = new Date().toISOString().slice(0, 10);
 
@@ -140,13 +142,20 @@
       return 'Rs. ' + Number(value).toLocaleString('en-LK', { maximumFractionDigits: 0 });
     }
 
-    function newRow() {
+    function escapeHtml(value) {
+      return String(value || '').replace(/[&<>"']/g, char => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+      }[char]));
+    }
+
+    function newRow(name = '', qty = 1, cost = 0) {
       const tr = document.createElement('tr');
+      const lineTotal = (parseFloat(qty) || 0) * (parseFloat(cost) || 0);
       tr.innerHTML = [
-        '<td><input class="tag po-name" style="border:1px solid var(--line); width:100%;" placeholder="Product name"></td>',
-        '<td><input class="tag qty" style="border:1px solid var(--line); width:80px;" type="number" value="0" min="1"></td>',
-        '<td><input class="tag cost" style="border:1px solid var(--line); width:100px;" type="number" value="0" min="0"></td>',
-        '<td class="cell-mono line-total">Rs. 0</td>',
+        `<td><input class="tag po-name" style="border:1px solid var(--line); width:100%;" placeholder="Product name" value="${escapeHtml(name)}"></td>`,
+        `<td><input class="tag qty" style="border:1px solid var(--line); width:80px;" type="number" value="${qty}" min="1"></td>`,
+        `<td><input class="tag cost" style="border:1px solid var(--line); width:100px;" type="number" value="${cost}" min="0"></td>`,
+        `<td class="cell-mono line-total">${money(lineTotal)}</td>`,
         '<td><button class="icon-btn remove-btn" type="button">Remove</button></td>'
       ].join('');
       return tr;
@@ -194,8 +203,45 @@
         return;
       }
       supplierSelect.innerHTML = result.data
-        .map(supplier => `<option value="${supplier.id}">${supplier.name}</option>`)
+        .map(supplier => `<option value="${supplier.id}">${escapeHtml(supplier.name)}</option>`)
         .join('');
+    }
+
+    async function loadExistingPo() {
+      if (!poId) return;
+      document.title = 'BOOKWISE — Edit Purchase Order';
+      document.getElementById('pageCrumb').textContent = 'Module 03 · Suppliers · Edit Purchase Order';
+      document.getElementById('pageHeading').textContent = 'Edit Purchase Order';
+      document.getElementById('pageLede').textContent = 'Modify order details or line items. Changes will be updated in the system.';
+      saveBtn.textContent = 'Update Purchase Order';
+
+      try {
+        const response = await fetch(`api/index.php?resource=purchase_orders&id=${poId}`);
+        const result = await response.json();
+        if (!response.ok || !result.success || !result.data) {
+          messageEl.textContent = result.message || 'Could not load existing purchase order.';
+          return;
+        }
+
+        const po = result.data;
+        document.getElementById('poRefInput').value = po.po_ref || '';
+        document.getElementById('poOrderDate').value = po.order_date || '';
+        document.getElementById('poExpectedDate').value = po.expected_date || '';
+        document.getElementById('poNotes').value = po.notes || '';
+        if (po.supplier_id) {
+          supplierSelect.value = po.supplier_id;
+        }
+
+        if (Array.isArray(po.items) && po.items.length > 0) {
+          itemsBody.innerHTML = '';
+          po.items.forEach(item => {
+            itemsBody.appendChild(newRow(item.product_name, item.quantity, item.unit_cost));
+          });
+          recalc();
+        }
+      } catch (err) {
+        messageEl.textContent = 'Error loading purchase order: ' + err.message;
+      }
     }
 
     saveBtn.addEventListener('click', async () => {
@@ -224,12 +270,15 @@
         items
       };
 
+      const btnLabel = poId ? 'Update Purchase Order' : 'Save Purchase Order';
       saveBtn.disabled = true;
-      saveBtn.textContent = 'Saving…';
+      saveBtn.textContent = poId ? 'Updating…' : 'Saving…';
 
       try {
-        const response = await fetch('api/index.php?resource=purchase_orders', {
-          method: 'POST',
+        const url = poId ? `api/index.php?resource=purchase_orders&id=${poId}` : 'api/index.php?resource=purchase_orders';
+        const method = poId ? 'PUT' : 'POST';
+        const response = await fetch(url, {
+          method,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
@@ -237,18 +286,20 @@
         if (!response.ok || !result.success) {
           messageEl.textContent = result.message || 'Something went wrong.';
           saveBtn.disabled = false;
-          saveBtn.textContent = 'Save Purchase Order';
+          saveBtn.textContent = btnLabel;
           return;
         }
         window.location.href = 'suppliers.html';
       } catch (error) {
         messageEl.textContent = 'Could not connect to the database. Is XAMPP running?';
         saveBtn.disabled = false;
-        saveBtn.textContent = 'Save Purchase Order';
+        saveBtn.textContent = btnLabel;
       }
     });
 
-    loadSuppliers();
+    loadSuppliers().then(() => {
+      if (poId) loadExistingPo();
+    });
     recalc();
   })();
 </script>

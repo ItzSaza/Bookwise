@@ -126,6 +126,77 @@
   }
   window.showAppNotification = notify;
 
+  window.bookwiseConfirm = function (message, options) {
+    options = options || {};
+    return new Promise(function (resolve) {
+      const title = options.title || 'Confirm Deletion';
+      const confirmText = options.confirmText || 'Delete';
+      const cancelText = options.cancelText || 'Cancel';
+      const isDanger = options.danger !== false;
+
+      const existing = document.getElementById('bw-confirm-modal');
+      if (existing) existing.remove();
+
+      const modal = document.createElement('div');
+      modal.id = 'bw-confirm-modal';
+      modal.setAttribute('role', 'dialog');
+      modal.setAttribute('aria-modal', 'true');
+      modal.innerHTML = `
+        <div class="bw-confirm-backdrop"></div>
+        <div class="bw-confirm-card">
+          <div class="bw-confirm-header">
+            <div class="bw-confirm-icon ${isDanger ? 'danger' : ''}">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+            </div>
+            <div class="bw-confirm-title">${esc(title)}</div>
+          </div>
+          <div class="bw-confirm-body">
+            <p>${esc(message)}</p>
+            ${isDanger ? '<p class="bw-confirm-sub">This action cannot be undone.</p>' : ''}
+          </div>
+          <div class="bw-confirm-actions">
+            <button type="button" class="bw-confirm-btn bw-confirm-cancel" id="bw-confirm-cancel-btn">${esc(cancelText)}</button>
+            <button type="button" class="bw-confirm-btn bw-confirm-ok ${isDanger ? 'danger' : 'primary'}" id="bw-confirm-ok-btn">${esc(confirmText)}</button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+
+      const cancelBtn = modal.querySelector('#bw-confirm-cancel-btn');
+      const okBtn = modal.querySelector('#bw-confirm-ok-btn');
+      const backdrop = modal.querySelector('.bw-confirm-backdrop');
+
+      function cleanup(val) {
+        document.removeEventListener('keydown', onKey);
+        modal.classList.add('bw-confirm-closing');
+        setTimeout(() => modal.remove(), 160);
+        resolve(val);
+      }
+
+      function onKey(e) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          cleanup(false);
+        } else if (e.key === 'Enter' && document.activeElement !== cancelBtn) {
+          e.preventDefault();
+          cleanup(true);
+        }
+      }
+
+      cancelBtn.addEventListener('click', () => cleanup(false));
+      backdrop.addEventListener('click', () => cleanup(false));
+      okBtn.addEventListener('click', () => cleanup(true));
+      document.addEventListener('keydown', onKey);
+      setTimeout(() => okBtn.focus(), 40);
+    });
+  };
+  window.confirmModal = window.bookwiseConfirm;
+
   function operationName(method, url) {
     const m = method.toUpperCase();
     const path = (url.split('?')[0].split('/').pop() || '').replace('.php', '');
@@ -240,6 +311,27 @@
       .bw-toast button:hover{color:#7a2e2e}
       @keyframes bwToastIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
       @media(max-width:600px){#bw-notification-center{top:12px;right:12px}.bw-notification-trigger{width:40px;height:40px}#bw-notification-toasts{top:62px;right:12px}}
+      #bw-confirm-modal{position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;padding:16px;animation:bwFadeIn .15s ease-out}
+      #bw-confirm-modal.bw-confirm-closing{animation:bwFadeOut .15s ease-in forwards}
+      .bw-confirm-backdrop{position:absolute;inset:0;background:rgba(18,32,58,0.65);backdrop-filter:blur(3px)}
+      .bw-confirm-card{position:relative;z-index:1;background:#fff;border-radius:12px;box-shadow:0 24px 60px rgba(18,32,58,0.32),0 0 0 1px rgba(18,32,58,0.08);max-width:440px;width:100%;padding:24px;font-family:Inter,Arial,sans-serif;color:#12203a;animation:bwScaleIn .18s cubic-bezier(.16,1,.3,1)}
+      .bw-confirm-header{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+      .bw-confirm-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:rgba(18,32,58,0.06);color:#1c355e;flex-shrink:0}
+      .bw-confirm-icon.danger{background:#fdf2f0;color:#c93b2b}
+      .bw-confirm-title{font-size:16px;font-weight:700;color:#12203a}
+      .bw-confirm-body p{margin:0 0 6px;font-size:13.5px;line-height:1.5;color:#475569}
+      .bw-confirm-sub{font-size:12px !important;color:#8a99ad !important}
+      .bw-confirm-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:20px}
+      .bw-confirm-btn{padding:8px 16px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s ease;border:1px solid transparent;font-family:inherit}
+      .bw-confirm-cancel{background:#f1f4f8;color:#12203a;border-color:#dbe2ea}
+      .bw-confirm-cancel:hover{background:#e4e9f0}
+      .bw-confirm-ok.danger{background:#c93b2b;color:#fff}
+      .bw-confirm-ok.danger:hover{background:#a82e20;box-shadow:0 4px 12px rgba(201,59,43,0.28)}
+      .bw-confirm-ok.primary{background:#1c355e;color:#fff}
+      .bw-confirm-ok.primary:hover{background:#12203a}
+      @keyframes bwScaleIn{from{opacity:0;transform:scale(.95) translateY(6px)}to{opacity:1;transform:scale(1) translateY(0)}}
+      @keyframes bwFadeIn{from{opacity:0}to{opacity:1}}
+      @keyframes bwFadeOut{from{opacity:1}to{opacity:0}}
     `;
     document.head.appendChild(styles);
 

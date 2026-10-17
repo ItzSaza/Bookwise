@@ -162,14 +162,38 @@ function validateSale(array $input): array
 try {
     $database = getDatabaseConnection();
     $path = trim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '', '/');
-    $apiPath = preg_replace('#^.*?/api/?#', '', $path);
+    $apiPath = preg_replace('#^.*?(?:^|/)api(?:/index\.php)?/?#i', '', $path);
     $segments = $apiPath === '' ? [] : explode('/', $apiPath);
-    $resource = $_GET['resource'] ?? ($segments[0] ?? '');
-    $id = isset($segments[1])
-        ? filter_var($segments[1], FILTER_VALIDATE_INT)
-        : (isset($_GET['id']) ? filter_var($_GET['id'], FILTER_VALIDATE_INT) : null);
+
+    $resource = trim((string) ($_GET['resource'] ?? ($segments[0] ?? '')));
+    if ($resource === 'index.php') {
+        $resource = '';
+    }
+
+    $rawId = $_GET['id'] ?? ($segments[1] ?? null);
+    $id = ($rawId !== null && $rawId !== '') ? filter_var($rawId, FILTER_VALIDATE_INT) : null;
+    if ($id === false) {
+        $id = null;
+    }
+
     $method = $_SERVER['REQUEST_METHOD'];
     $body = requestBody();
+
+    if ($method === 'POST') {
+        $override = $_POST['_method'] ?? $_GET['_method'] ?? $_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE'] ?? null;
+        if ($override && in_array(strtoupper($override), ['PUT', 'PATCH', 'DELETE'], true)) {
+            $method = strtoupper($override);
+        } elseif (($_GET['action'] ?? '') === 'delete' || ($_POST['action'] ?? '') === 'delete' || ($body['action'] ?? '') === 'delete') {
+            $method = 'DELETE';
+        }
+    }
+
+    if ($id === null && !empty($body['id'])) {
+        $candidateId = filter_var($body['id'], FILTER_VALIDATE_INT);
+        if ($candidateId !== false) {
+            $id = $candidateId;
+        }
+    }
 
     // Root health-check endpoint: confirms the API is running and the database is reachable.
     if ($resource === '' && $method === 'GET') {
@@ -251,10 +275,64 @@ try {
         }
     }
 
-    // Category lookup endpoint: returns the available inventory categories.
+    // Category management endpoints (Create, Read, Update, Delete)
     if ($resource === 'categories' && $method === 'GET') {
-        $categories = $database->query('SELECT id, name FROM categories ORDER BY name')->fetchAll();
+        if ($id) {
+            $statement = $database->prepare('SELECT id, name FROM categories WHERE id = :id');
+            $statement->execute(['id' => $id]);
+            $cat = $statement->fetch();
+            if (!$cat) respond(['success' => false, 'message' => 'Category not found.'], 404);
+            respond(['success' => true, 'data' => $cat]);
+        }
+        $categories = $database->query(
+            'SELECT c.id, c.name, COUNT(p.id) AS product_count
+             FROM categories c
+             LEFT JOIN products p ON p.category_id = c.id
+             GROUP BY c.id
+             ORDER BY c.name'
+        )->fetchAll();
         respond(['success' => true, 'data' => $categories]);
+    }
+
+    if ($resource === 'categories' && $method === 'POST') {
+        $name = trim((string) ($body['name'] ?? ''));
+        if ($name === '') {
+            respond(['success' => false, 'message' => 'Category name is required.'], 422);
+        }
+        try {
+            $statement = $database->prepare('INSERT INTO categories (name) VALUES (:name)');
+            $statement->execute(['name' => $name]);
+            respond(['success' => true, 'message' => 'Category created successfully.', 'id' => (int) $database->lastInsertId()], 201);
+        } catch (PDOException $e) {
+            respond(['success' => false, 'message' => 'A category with this name already exists.'], 422);
+        }
+    }
+
+    if ($resource === 'categories' && $id && $method === 'PUT') {
+        $name = trim((string) ($body['name'] ?? ''));
+        if ($name === '') {
+            respond(['success' => false, 'message' => 'Category name is required.'], 422);
+        }
+        try {
+            $statement = $database->prepare('UPDATE categories SET name = :name WHERE id = :id');
+            $statement->execute(['name' => $name, 'id' => $id]);
+            respond(['success' => true, 'message' => 'Category updated successfully.']);
+        } catch (PDOException $e) {
+            respond(['success' => false, 'message' => 'Category name already exists or update failed.'], 422);
+        }
+    }
+
+    if ($resource === 'categories' && $id && $method === 'DELETE') {
+        try {
+            $statement = $database->prepare('DELETE FROM categories WHERE id = :id');
+            $statement->execute(['id' => $id]);
+            if ($statement->rowCount() === 0) {
+                respond(['success' => false, 'message' => 'Category not found.'], 404);
+            }
+            respond(['success' => true, 'message' => 'Category deleted successfully.']);
+        } catch (PDOException $e) {
+            respond(['success' => false, 'message' => 'Cannot delete this category because products are assigned to it.'], 422);
+        }
     }
 
     // Supplier retrieval endpoint: fetches supplier records, optionally filtered by active status, or single supplier if id given.
@@ -325,8 +403,31 @@ try {
         }
     }
 
-    // Purchase order endpoints
+    // Purchase order endpoints (Create, Read, Update, Delete)
     if ($resource === 'purchase_orders' && $method === 'GET') {
+        if ($id) {
+            try {
+                $statement = $database->prepare(
+                    "SELECT po.id, po.po_ref, po.supplier_id, s.name AS supplier_name, po.order_date, po.expected_date,
+                            po.notes, po.status, po.total_amount,
+                            (po.status = 'Pending' AND po.expected_date IS NOT NULL AND po.expected_date < CURRENT_DATE()) AS is_overdue
+                     FROM purchase_orders po
+                     LEFT JOIN suppliers s ON s.id = po.supplier_id
+                     WHERE po.id = :id"
+                );
+                $statement->execute(['id' => $id]);
+                $po = $statement->fetch();
+                if (!$po) {
+                    respond(['success' => false, 'message' => 'Purchase order not found.'], 404);
+                }
+                $itemStmt = $database->prepare('SELECT * FROM purchase_order_items WHERE purchase_order_id = :id');
+                $itemStmt->execute(['id' => $id]);
+                $po['items'] = $itemStmt->fetchAll();
+                respond(['success' => true, 'data' => $po]);
+            } catch (PDOException $e) {
+                respond(['success' => false, 'message' => 'Error loading purchase order.'], 500);
+            }
+        }
         try {
             $statement = $database->query(
                 "SELECT po.id, po.po_ref, po.supplier_id, s.name AS supplier_name, po.order_date, po.expected_date,
@@ -353,13 +454,80 @@ try {
         }
     }
 
+    if ($resource === 'purchase_orders' && $id && $method === 'PUT') {
+        try {
+            $supplierId = filter_var($body['supplier_id'] ?? null, FILTER_VALIDATE_INT);
+            $orderDate = trim((string) ($body['order_date'] ?? date('Y-m-d')));
+            $expectedDate = trim((string) ($body['expected_date'] ?? '')) ?: null;
+            $notes = trim((string) ($body['notes'] ?? '')) ?: null;
+            $status = in_array($body['status'] ?? '', ['Pending', 'Delivered', 'Cancelled'], true) ? $body['status'] : null;
+            $items = $body['items'] ?? [];
+            if (!$supplierId || empty($items)) {
+                respond(['success' => false, 'message' => 'Supplier and at least one item are required.'], 422);
+            }
+            $total = 0;
+            foreach ($items as $item) {
+                $total += ((int)($item['quantity'] ?? 0)) * ((float)($item['unit_cost'] ?? 0));
+            }
+            $database->beginTransaction();
+            $sql = 'UPDATE purchase_orders SET supplier_id = :supplier_id, order_date = :order_date, expected_date = :expected_date, notes = :notes, total_amount = :total_amount';
+            $params = [
+                'id' => $id,
+                'supplier_id' => $supplierId,
+                'order_date' => $orderDate,
+                'expected_date' => $expectedDate,
+                'notes' => $notes,
+                'total_amount' => $total,
+            ];
+            if ($status !== null) {
+                $sql .= ', status = :status';
+                $params['status'] = $status;
+            }
+            $sql .= ' WHERE id = :id';
+            $statement = $database->prepare($sql);
+            $statement->execute($params);
+
+            $database->prepare('DELETE FROM purchase_order_items WHERE purchase_order_id = :id')->execute(['id' => $id]);
+            $itemStmt = $database->prepare(
+                'INSERT INTO purchase_order_items (purchase_order_id, product_name, quantity, unit_cost, line_total)
+                 VALUES (:po_id, :name, :qty, :cost, :line_total)'
+            );
+            foreach ($items as $item) {
+                $qty = (int)($item['quantity'] ?? 1);
+                $cost = (float)($item['unit_cost'] ?? 0);
+                $itemStmt->execute([
+                    'po_id' => $id,
+                    'name' => trim((string)$item['product_name']),
+                    'qty' => $qty,
+                    'cost' => $cost,
+                    'line_total' => $qty * $cost,
+                ]);
+            }
+            $database->commit();
+            respond(['success' => true, 'message' => 'Purchase order updated successfully.']);
+        } catch (PDOException $e) {
+            if ($database->inTransaction()) $database->rollBack();
+            respond(['success' => false, 'message' => 'Could not update purchase order: ' . $e->getMessage()], 500);
+        }
+    }
+
     if ($resource === 'purchase_orders' && $id && $method === 'DELETE') {
         try {
-            $statement = $database->prepare("UPDATE purchase_orders SET status = 'Cancelled' WHERE id = :id");
-            $statement->execute(['id' => $id]);
-            respond(['success' => true, 'message' => 'Purchase order cancelled.']);
+            $permanent = ($_GET['permanent'] ?? '') === 'true';
+            if ($permanent) {
+                $database->beginTransaction();
+                $database->prepare('DELETE FROM purchase_order_items WHERE purchase_order_id = :id')->execute(['id' => $id]);
+                $database->prepare('DELETE FROM purchase_orders WHERE id = :id')->execute(['id' => $id]);
+                $database->commit();
+                respond(['success' => true, 'message' => 'Purchase order deleted successfully.']);
+            } else {
+                $statement = $database->prepare("UPDATE purchase_orders SET status = 'Cancelled' WHERE id = :id");
+                $statement->execute(['id' => $id]);
+                respond(['success' => true, 'message' => 'Purchase order cancelled.']);
+            }
         } catch (PDOException $e) {
-            respond(['success' => false, 'message' => 'Failed to cancel purchase order.'], 500);
+            if ($database->inTransaction()) $database->rollBack();
+            respond(['success' => false, 'message' => 'Failed to delete purchase order.'], 500);
         }
     }
 
@@ -412,11 +580,27 @@ try {
         }
     }
 
-    // Sales list endpoint: returns recent sales records with totals and basic summary data.
+    // Sales endpoints (Create, Read, Update, Delete)
     if ($resource === 'sales' && $method === 'GET') {
+        if ($id) {
+            $statement = $database->prepare(
+                'SELECT s.*, DATE_FORMAT(s.created_at, "%d %b %Y, %H:%i") AS date
+                 FROM sales s WHERE s.id = :id'
+            );
+            $statement->execute(['id' => $id]);
+            $sale = $statement->fetch();
+            if (!$sale) {
+                respond(['success' => false, 'message' => 'Sale not found.'], 404);
+            }
+            $itemStmt = $database->prepare('SELECT * FROM sale_items WHERE sale_id = :id');
+            $itemStmt->execute(['id' => $id]);
+            $sale['items'] = $itemStmt->fetchAll();
+            respond(['success' => true, 'data' => $sale]);
+        }
         $statement = $database->query(
-            'SELECT s.order_ref AS ref, s.customer_name AS customer, COUNT(si.id) AS items,
-                    s.payment_method AS payment, s.total_amount AS amount, s.status,
+            'SELECT s.id, s.order_ref AS ref, s.customer_name AS customer, COUNT(si.id) AS items,
+                    s.payment_method AS payment, s.subtotal, s.discount_amount, s.tax_amount,
+                    s.total_amount AS amount, s.status,
                     DATE_FORMAT(s.created_at, "%d %b %Y, %H:%i") AS date
              FROM sales s
              LEFT JOIN sale_items si ON si.sale_id = s.id
@@ -429,7 +613,9 @@ try {
 
     // Sale creation endpoint: validates items, inserts the sales header, and creates item rows in one transaction.
     if ($resource === 'sales' && $method === 'POST') {
-        $sale = validateSale(requestBody());
+        $raw = requestBody();
+        $sale = validateSale($raw);
+        $customerName = trim((string) ($raw['customer_name'] ?? 'Walk-in Customer')) ?: 'Walk-in Customer';
         $database->beginTransaction();
         $orderRef = 'ORD-' . str_pad((string) (time() % 100000), 5, '0', STR_PAD_LEFT);
         $saleStatement = $database->prepare(
@@ -439,7 +625,7 @@ try {
         );
         $saleStatement->execute([
             'order_ref' => $orderRef,
-            'customer_name' => 'Walk-in Customer',
+            'customer_name' => $customerName,
             'payment_method' => $sale['payment_method'],
             'subtotal' => $sale['subtotal'],
             'discount_amount' => $sale['discount_amount'],
@@ -461,7 +647,61 @@ try {
             ]);
         }
         $database->commit();
-        respond(['success' => true, 'message' => 'Sale completed successfully.', 'order_ref' => $orderRef], 201);
+        respond(['success' => true, 'message' => 'Sale completed successfully.', 'order_ref' => $orderRef, 'id' => $saleId], 201);
+    }
+
+    // Sale update endpoint: updates order customer, payment method, or status.
+    if ($resource === 'sales' && $id && ($method === 'PUT' || $method === 'PATCH')) {
+        $customer = trim((string) ($body['customer_name'] ?? ''));
+        $payment = in_array($body['payment_method'] ?? '', ['Cash', 'Card'], true) ? $body['payment_method'] : null;
+        $status = in_array($body['status'] ?? '', ['Paid', 'Pending', 'Refunded'], true) ? $body['status'] : null;
+
+        $updates = [];
+        $params = ['id' => $id];
+        if ($customer !== '') {
+            $updates[] = 'customer_name = :customer_name';
+            $params['customer_name'] = $customer;
+        }
+        if ($payment !== null) {
+            $updates[] = 'payment_method = :payment_method';
+            $params['payment_method'] = $payment;
+        }
+        if ($status !== null) {
+            $updates[] = 'status = :status';
+            $params['status'] = $status;
+        }
+
+        if (empty($updates)) {
+            respond(['success' => false, 'message' => 'No fields to update provided.'], 422);
+        }
+
+        try {
+            $sql = 'UPDATE sales SET ' . implode(', ', $updates) . ' WHERE id = :id';
+            $statement = $database->prepare($sql);
+            $statement->execute($params);
+            respond(['success' => true, 'message' => 'Order updated successfully.']);
+        } catch (PDOException $e) {
+            respond(['success' => false, 'message' => 'Failed to update order: ' . $e->getMessage()], 500);
+        }
+    }
+
+    // Sale deletion endpoint: permanently deletes a sale and its associated line items.
+    if ($resource === 'sales' && $id && $method === 'DELETE') {
+        try {
+            $database->beginTransaction();
+            $database->prepare('DELETE FROM sale_items WHERE sale_id = :id')->execute(['id' => $id]);
+            $statement = $database->prepare('DELETE FROM sales WHERE id = :id');
+            $statement->execute(['id' => $id]);
+            if ($statement->rowCount() === 0) {
+                $database->rollBack();
+                respond(['success' => false, 'message' => 'Sale not found.'], 404);
+            }
+            $database->commit();
+            respond(['success' => true, 'message' => 'Order deleted successfully.']);
+        } catch (PDOException $e) {
+            if ($database->inTransaction()) $database->rollBack();
+            respond(['success' => false, 'message' => 'Failed to delete order: ' . $e->getMessage()], 500);
+        }
     }
 
     // User list endpoint: retrieves staff and admin user records, or single user if id given.
@@ -563,8 +803,17 @@ try {
         respond(['success' => true, 'message' => 'User deleted successfully.']);
     }
 
-    // Employee lookup endpoint: returns all employee records sorted by name.
+    // Employee lookup endpoint: returns all employee records sorted by name or single employee if id given.
     if ($resource === 'employees' && $method === 'GET') {
+        if ($id) {
+            $statement = $database->prepare('SELECT id, name, role, phone, department, status FROM employees WHERE id = :id');
+            $statement->execute(['id' => $id]);
+            $emp = $statement->fetch();
+            if (!$emp) {
+                respond(['success' => false, 'message' => 'Employee was not found.'], 404);
+            }
+            respond(['success' => true, 'data' => $emp]);
+        }
         $statement = $database->query(
             'SELECT id, name, role, phone, department, status
              FROM employees

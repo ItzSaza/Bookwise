@@ -6,6 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script src="notifications.js"></script>
 </head>
 <body data-backend-users="true">
 <div class="app">
@@ -302,19 +303,32 @@
         const userId = deleteButton.dataset.deleteId;
         const user = allUsers.find(u => Number(u.id) === Number(userId));
         const userName = user ? user.full_name : 'this user';
-        if (!confirm(`Are you sure you want to permanently delete "${userName}"?`)) return;
+        const confirmed = typeof window.bookwiseConfirm === 'function'
+          ? await window.bookwiseConfirm(`Are you sure you want to permanently delete "${userName}"?`, { title: 'Delete User', confirmText: 'Delete' })
+          : true;
+        if (!confirmed) return;
 
         try {
           const response = await fetch(`api/index.php?resource=users&id=${userId}`, { method: 'DELETE' });
           const result = await response.json();
-          if (!response.ok || !result.success) return alert(result.message || 'Could not delete user.');
+          if (!response.ok || !result.success) {
+            if (typeof window.showAppNotification === 'function') {
+              window.showAppNotification('error', 'Delete User Failed', result.message || 'Could not delete user.');
+            } else {
+              alert(result.message || 'Could not delete user.');
+            }
+            return;
+          }
           if (editingUserId && Number(editingUserId) === Number(userId)) {
             closeForm();
           }
           await loadUsers();
-          alert(result.message || 'User deleted successfully.');
         } catch (err) {
-          alert('Failed to delete user: ' + err.message);
+          if (typeof window.showAppNotification === 'function') {
+            window.showAppNotification('error', 'Delete User Failed', err.message);
+          } else {
+            alert('Failed to delete user: ' + err.message);
+          }
         }
         return;
       }
@@ -374,7 +388,6 @@
     }
   })();
 </script>
-<script src="notifications.js"></script>
 <script src="auth.js"></script>
 </body>
 </html>

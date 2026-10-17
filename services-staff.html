@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script src="notifications.js"></script>
 <style>
   .field-row {
     display: grid;
@@ -596,7 +597,11 @@
       removeBtn.type = "button";
       removeBtn.className = "shift-remove";
       removeBtn.textContent = "Remove";
-      removeBtn.addEventListener("click", function(){
+      removeBtn.addEventListener("click", async function(){
+        var confirmed = typeof window.bookwiseConfirm === 'function'
+          ? await window.bookwiseConfirm("Remove shift schedule for " + shift.employeeName + "?", { title: "Remove Shift", confirmText: "Remove" })
+          : true;
+        if (!confirmed) return;
         shifts = shifts.filter(function(s){ return s.id !== shift.id; });
         renderShifts();
         showToast("Shift removed");
@@ -684,17 +689,22 @@
       }).catch(function(error){ showToast(error.message); });
   });
 
-  function deleteEmployee(id, name){
-    if (!confirm("Are you sure you want to delete employee \"" + name + "\"?")) return;
-    fetch("api/index.php?resource=employees&id=" + id, { method: "DELETE" })
-      .then(function(response){ return response.json().then(function(result){ return { response: response, result: result }; }); })
-      .then(function(data){
-        if (!data.response.ok || !data.result.success) throw new Error(data.result.message || "Could not delete employee.");
-        shifts = shifts.filter(function(s){ return s.employeeId !== id; });
-        showToast(data.result.message);
-        if (editingId === id) closeEmployeeModal();
-        return loadEmployees();
-      }).catch(function(error){ showToast(error.message); });
+  async function deleteEmployee(id, name){
+    var confirmed = typeof window.bookwiseConfirm === 'function'
+      ? await window.bookwiseConfirm("Are you sure you want to delete employee \"" + name + "\"?", { title: "Delete Employee", confirmText: "Delete" })
+      : true;
+    if (!confirmed) return;
+    try {
+      var response = await fetch("api/index.php?resource=employees&id=" + id, { method: "DELETE" });
+      var result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.message || "Could not delete employee.");
+      shifts = shifts.filter(function(s){ return s.employeeId !== id; });
+      showToast(result.message || "Employee deleted successfully.");
+      if (editingId === id) closeEmployeeModal();
+      await loadEmployees();
+    } catch (error) {
+      showToast(error.message);
+    }
   }
 
   deleteBtn.addEventListener("click", function(){
@@ -747,7 +757,6 @@
 })();
 </script>
 
-<script src="notifications.js"></script>
 <script src="auth.js"></script>
 </body>
 </html>

@@ -6,6 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script src="notifications.js"></script>
 </head>
 <body>
 <div class="app">
@@ -293,15 +294,27 @@
       }
 
       const deleteButton = event.target.closest('[data-delete-id]');
-      if (!deleteButton || !confirm('Permanently delete this expense?')) return;
+      if (!deleteButton) return;
+      const expenseId = deleteButton.dataset.deleteId;
+      const expense = expenses.find(item => Number(item.id) === Number(expenseId));
+      const ref = expense ? expense.expense_ref : 'this expense';
+      const confirmed = typeof window.bookwiseConfirm === 'function'
+        ? await window.bookwiseConfirm(`Are you sure you want to permanently delete expense "${ref}"?`, { title: 'Delete Expense', confirmText: 'Delete' })
+        : true;
+      if (!confirmed) return;
+
       deleteButton.disabled = true;
       try {
-        await requestJson(`api/index.php?resource=expenses&id=${encodeURIComponent(deleteButton.dataset.deleteId)}`, {
+        await requestJson(`api/index.php?resource=expenses&id=${encodeURIComponent(expenseId)}`, {
           method: 'DELETE'
         });
         await Promise.all([loadExpenses(), loadFinancials()]);
       } catch (error) {
-        alert(error.message);
+        if (typeof window.showAppNotification === 'function') {
+          window.showAppNotification('error', 'Delete Expense Failed', error.message);
+        } else {
+          alert(error.message);
+        }
         deleteButton.disabled = false;
       }
     });
@@ -322,7 +335,6 @@
     window.addEventListener('focus', refreshDashboard);
   })();
 </script>
- <script src="notifications.js"></script>
 <script src="auth.js"></script>
 </body>
 </html>

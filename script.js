@@ -406,7 +406,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // If this is another BOOKWISE page, do not run POS code.
   if (!productGrid || !cartItems) return;
 
-  const products = [
+  let products = [
     {id:"BK001", title:"The Silent Patient", author:"Alex Michaelides", category:"Fiction", price:1850, stock:12, cover:"TSP"},
     {id:"BK002", title:"Atomic Habits", author:"James Clear", category:"Business", price:3200, stock:8, cover:"AH", color:"sage"},
     {id:"BK003", title:"The Psychology of Money", author:"Morgan Housel", category:"Business", price:2850, stock:15, cover:"PM", color:"red"},
@@ -435,11 +435,36 @@ document.addEventListener("DOMContentLoaded", () => {
   ];
 
   async function loadSavedOrders() {
-    const response = await fetch("api/index.php?resource=sales");
-    const result = await response.json();
-    if (response.ok && result.success && result.data.length) {
-      orders = result.data;
-    }
+    try {
+      const response = await fetch("api/index.php?resource=sales");
+      const result = await response.json();
+      if (response.ok && result.success && Array.isArray(result.data)) {
+        orders = result.data;
+        renderOrders();
+      }
+    } catch (_) {}
+  }
+
+  async function loadDbProducts() {
+    try {
+      const response = await fetch("api/index.php?resource=products");
+      const result = await response.json();
+      if (response.ok && result.success && Array.isArray(result.data) && result.data.length > 0) {
+        const colors = ["", "sage", "red", "gold"];
+        products = result.data.map((p, idx) => ({
+          id: String(p.id),
+          sku: p.sku || `BK${p.id}`,
+          title: p.name,
+          author: p.author || 'Bookwise Catalog',
+          category: p.category_name || 'General',
+          price: Number(p.unit_price) || 0,
+          stock: Number(p.stock_quantity) || 0,
+          cover: (p.name.split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || 'BK'),
+          color: colors[idx % colors.length]
+        }));
+        renderProducts();
+      }
+    } catch (_) {}
   }
 
   const $ = id => document.getElementById(id);
@@ -650,6 +675,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
       newOrder.ref = result.order_ref;
+      if (result.id) newOrder.id = result.id;
       orders.unshift(newOrder);
     } catch (error) {
       toast("Could not connect to the sales database.");
@@ -712,23 +738,116 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const filtered = orders.filter(order => {
       const matchesStatus = status === "All" || order.status === status;
-      const text = `${order.ref} ${order.customer} ${order.payment}`.toLowerCase();
+      const text = `${order.ref || order.order_ref} ${order.customer || order.customer_name} ${order.payment || order.payment_method}`.toLowerCase();
       return matchesStatus && (!search || text.includes(search));
     });
 
     $("ordersTableBody").innerHTML = filtered.length
       ? filtered.map(order => `
         <tr>
-          <td class="cell-strong">${order.ref}</td>
-          <td>${escapeHtml(order.customer)}</td>
-          <td>${order.items}</td>
-          <td>${escapeHtml(order.payment)}</td>
-          <td class="cell-mono">${money(order.amount)}</td>
-          <td><span class="status-pill ${order.status.toLowerCase()}">${order.status}</span></td>
-          <td>${escapeHtml(order.date)}</td>
+          <td class="cell-strong">${escapeHtml(order.ref || order.order_ref)}</td>
+          <td>${escapeHtml(order.customer || order.customer_name)}</td>
+          <td>${order.items || 1}</td>
+          <td>${escapeHtml(order.payment || order.payment_method)}</td>
+          <td class="cell-mono">${money(order.amount || order.total_amount)}</td>
+          <td><span class="status-pill ${(order.status || 'paid').toLowerCase()}">${escapeHtml(order.status || 'Paid')}</span></td>
+          <td>${escapeHtml(order.date || order.created_at || '—')}</td>
+          <td style="text-align:right;white-space:nowrap">
+            <div style="display:inline-flex;gap:6px">
+              <button class="icon-btn" type="button" data-view-order="${order.id || order.ref || order.order_ref}" title="View Receipt">Receipt</button>
+              <button class="icon-btn" type="button" data-edit-order="${order.id || order.ref || order.order_ref}" title="Edit Order">Edit</button>
+              <button class="icon-btn danger" type="button" data-delete-order="${order.id || order.ref || order.order_ref}" title="Delete Order">Delete</button>
+            </div>
+          </td>
         </tr>
       `).join("")
-      : `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">No orders found.</td></tr>`;
+      : `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">No orders found.</td></tr>`;
+  }
+
+  async function viewOrderReceipt(identifier) {
+    let order = orders.find(o => String(o.id) === String(identifier) || o.ref === identifier || o.order_ref === identifier);
+    if (!order) return;
+    let items = [];
+    if (order.id) {
+      try {
+        const res = await fetch(`api/index.php?resource=sales&id=${order.id}`);
+        const data = await res.json();
+        if (data.success && data.data) {
+          order = { ...order, ...data.data };
+          items = data.data.items || [];
+        }
+      } catch (_) {}
+    }
+
+    const itemsHtml = items.length
+      ? items.map(item => `
+        <div class="receipt-row">
+          <span>${escapeHtml(item.product_name)} × ${item.quantity}</span>
+          <strong>${money(item.line_total)}</strong>
+        </div>
+      `).join("")
+      : `<div class="receipt-row"><span>Items: ${order.items || 1}</span><strong>${money(order.amount || order.total_amount)}</strong></div>`;
+
+    const subtotalVal = order.subtotal || (order.amount || order.total_amount);
+    const totalVal = order.amount || order.total_amount;
+
+    $("receiptBody").innerHTML = `
+      <div class="receipt-meta">
+        <strong>${escapeHtml(order.ref || order.order_ref)}</strong><br>
+        Customer: ${escapeHtml(order.customer || order.customer_name)}<br>
+        Payment: ${escapeHtml(order.payment || order.payment_method)} · Status: <strong>${escapeHtml(order.status)}</strong><br>
+        ${escapeHtml(order.date || order.created_at || new Date().toLocaleDateString())}
+      </div>
+      <div class="receipt-items">
+        ${itemsHtml}
+      </div>
+      ${order.subtotal ? `<div class="summary-line"><span>Subtotal</span><strong>${money(subtotalVal)}</strong></div>` : ''}
+      ${order.discount_amount ? `<div class="summary-line"><span>Discount</span><strong>- ${money(order.discount_amount)}</strong></div>` : ''}
+      ${order.tax_amount ? `<div class="summary-line"><span>Tax</span><strong>${money(order.tax_amount)}</strong></div>` : ''}
+      <div class="receipt-total"><span>Total</span><span>${money(totalVal)}</span></div>
+    `;
+    $("receiptModal").classList.add("show");
+  }
+
+  function openEditOrder(identifier) {
+    const order = orders.find(o => String(o.id) === String(identifier) || o.ref === identifier || o.order_ref === identifier);
+    if (!order) return;
+    $("editOrderId").value = order.id || '';
+    $("editOrderRef").value = order.ref || order.order_ref || '';
+    $("editCustomerName").value = order.customer || order.customer_name || 'Walk-in Customer';
+    $("editPaymentMethod").value = (order.payment || order.payment_method) === 'Card' ? 'Card' : 'Cash';
+    $("editOrderStatus").value = order.status || 'Paid';
+    $("editOrderModal").classList.add("show");
+  }
+
+  function closeEditOrder() {
+    $("editOrderModal").classList.remove("show");
+  }
+
+  async function deleteOrder(identifier) {
+    const order = orders.find(o => String(o.id) === String(identifier) || o.ref === identifier || o.order_ref === identifier);
+    const ref = order ? (order.ref || order.order_ref) : identifier;
+    const confirmed = typeof window.bookwiseConfirm === 'function'
+      ? await window.bookwiseConfirm(`Are you sure you want to permanently delete order "${ref}"?`, { title: 'Delete Order', confirmText: 'Delete' })
+      : true;
+    if (!confirmed) return;
+
+    if (order && order.id) {
+      try {
+        const response = await fetch(`api/index.php?resource=sales&id=${order.id}`, { method: "DELETE" });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          toast(result.message || "Failed to delete order.");
+          return;
+        }
+        toast(result.message || "Order deleted successfully.");
+      } catch (err) {
+        toast("Error deleting order: " + err.message);
+        return;
+      }
+    }
+    orders = orders.filter(o => String(o.id) !== String(identifier) && o.ref !== identifier && o.order_ref !== identifier);
+    renderOrders();
   }
 
   function updateStats(newOrder) {
@@ -871,6 +990,66 @@ document.addEventListener("DOMContentLoaded", () => {
     printWindow.print();
   });
 
+  // Table actions delegation (Receipt, Edit, Delete).
+  const ordersTableBody = $("ordersTableBody");
+  if (ordersTableBody) {
+    ordersTableBody.addEventListener("click", event => {
+      const viewBtn = event.target.closest("[data-view-order]");
+      if (viewBtn) {
+        viewOrderReceipt(viewBtn.dataset.viewOrder);
+        return;
+      }
+      const editBtn = event.target.closest("[data-edit-order]");
+      if (editBtn) {
+        openEditOrder(editBtn.dataset.editOrder);
+        return;
+      }
+      const delBtn = event.target.closest("[data-delete-order]");
+      if (delBtn) {
+        deleteOrder(delBtn.dataset.deleteOrder);
+        return;
+      }
+    });
+  }
+
+  // Edit Order Form Submission
+  const editOrderForm = $("editOrderForm");
+  if (editOrderForm) {
+    editOrderForm.addEventListener("submit", async event => {
+      event.preventDefault();
+      const id = $("editOrderId").value;
+      const payload = {
+        customer_name: $("editCustomerName").value.trim(),
+        payment_method: $("editPaymentMethod").value,
+        status: $("editOrderStatus").value
+      };
+      try {
+        const res = await fetch(`api/index.php?resource=sales&id=${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          toast(data.message || "Failed to update order.");
+          return;
+        }
+        toast("Order updated successfully.");
+        closeEditOrder();
+        await loadSavedOrders();
+      } catch (err) {
+        toast("Error updating order: " + err.message);
+      }
+    });
+  }
+
+  $("closeEditOrderBtn")?.addEventListener("click", closeEditOrder);
+  $("cancelEditOrderBtn")?.addEventListener("click", closeEditOrder);
+  $("editOrderModal")?.addEventListener("click", event => {
+    if (event.target === $("editOrderModal")) closeEditOrder();
+  });
+
+  loadDbProducts().catch(() => {});
   loadSavedOrders().then(renderOrders).catch(() => renderOrders());
 
   // Initial render.

@@ -37,4 +37,7 @@ if ($role === 'Cashier') {
 }
 
 header('Content-Type: text/html; charset=utf-8');
+header('Cache-Control: no-cache, no-store, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
 readfile(__DIR__ . DIRECTORY_SEPARATOR . $requested);

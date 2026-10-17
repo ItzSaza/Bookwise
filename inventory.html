@@ -2,10 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>BOOKWISE — Inventory</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script src="notifications.js"></script>
 </head>
 <body>
 <div class="app">
@@ -41,16 +45,14 @@
           <h1>Inventory Management</h1>
           <p class="lede">Track books, stationery, and gift items with live stock counts and reorder alerts.</p>
         </div>
-        <button class="btn btn-primary" onclick="window.location.href='add-product.html'">+ Add Product</button>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button class="btn btn-ghost" id="manageCategoriesBtn" type="button">Manage Categories</button>
+          <button class="btn btn-primary" onclick="window.location.href='add-product.html'">+ Add Product</button>
+        </div>
       </div>
 
-      <div class="tag-row">
+      <div class="tag-row" id="categoryFilterRow">
         <button class="tag active" type="button" data-filter="All Categories">All Categories</button>
-        <button class="tag" type="button" data-filter="Books">Books</button>
-        <button class="tag" type="button" data-filter="School Books">School Books</button>
-        <button class="tag" type="button" data-filter="Stationery">Stationery</button>
-        <button class="tag" type="button" data-filter="Office Supplies">Office Supplies</button>
-        <button class="tag" type="button" data-filter="Art &amp; Craft">Art &amp; Craft</button>
       </div>
 
       <div class="panel">
@@ -68,21 +70,85 @@
     </section>
   </main>
 </div>
-<!-- Inventory module script: loads products from the API, applies filters, and supports delete actions. -->
+
+<!-- Category Management Modal -->
+<div class="modal-backdrop" id="categoryModal">
+  <div class="receipt-modal" style="width:min(520px, 100%)">
+    <div class="receipt-head">
+      <h3>Manage Categories</h3>
+      <button class="close-modal" id="closeCategoryModalBtn" aria-label="Close">×</button>
+    </div>
+    <div style="padding:20px">
+      <!-- Add / Edit Category Form -->
+      <form id="categoryForm" style="display:flex;gap:10px;margin-bottom:18px;align-items:flex-end">
+        <input type="hidden" id="catEditId">
+        <div style="flex:1">
+          <label style="font-size:11.5px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px" id="catFormLabel">Add New Category</label>
+          <input id="catNameInput" required placeholder="e.g. Science Fiction" style="border:1px solid var(--line);border-radius:7px;padding:9px 12px;background:#FCFAF4;color:var(--ink);width:100%;box-sizing:border-box">
+        </div>
+        <button type="submit" class="btn btn-primary" id="saveCatBtn" style="white-space:nowrap">Add Category</button>
+        <button type="button" class="btn btn-ghost" id="cancelCatEditBtn" style="display:none;white-space:nowrap">Cancel</button>
+      </form>
+
+      <!-- Category List Table -->
+      <div style="max-height:260px;overflow-y:auto;border:1px solid var(--line);border-radius:8px">
+        <table style="margin:0;width:100%">
+          <thead>
+            <tr>
+              <th>Category Name</th>
+              <th>Products</th>
+              <th style="text-align:right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="categoryTableBody"></tbody>
+        </table>
+      </div>
+      <div id="catMessage" style="margin-top:12px;color:var(--burgundy);font-size:12.5px;font-weight:600"></div>
+    </div>
+    <div class="receipt-actions">
+      <button class="btn btn-ghost" id="closeCategoryAction">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Inventory module script: loads products and categories from API with full CRUD -->
 <script src="script.js"></script>
 <script>
   (async function () {
     const tableBody = document.getElementById('productTableBody');
     const countLabel = document.getElementById('inventoryCount');
     const searchInput = document.getElementById('supplierSearch');
+    const categoryFilterRow = document.getElementById('categoryFilterRow');
+    
+    // Category modal elements
+    const categoryModal = document.getElementById('categoryModal');
+    const manageCategoriesBtn = document.getElementById('manageCategoriesBtn');
+    const closeCategoryModalBtn = document.getElementById('closeCategoryModalBtn');
+    const closeCategoryAction = document.getElementById('closeCategoryAction');
+    const categoryForm = document.getElementById('categoryForm');
+    const catEditId = document.getElementById('catEditId');
+    const catNameInput = document.getElementById('catNameInput');
+    const catFormLabel = document.getElementById('catFormLabel');
+    const saveCatBtn = document.getElementById('saveCatBtn');
+    const cancelCatEditBtn = document.getElementById('cancelCatEditBtn');
+    const categoryTableBody = document.getElementById('categoryTableBody');
+    const catMessage = document.getElementById('catMessage');
+
     let activeCategory = '';
     let products = [];
+    let categories = [];
 
     function money(value) {
       return 'Rs. ' + Number(value).toLocaleString('en-LK', { maximumFractionDigits: 0 });
     }
 
-    function render() {
+    function escapeHtml(value) {
+      return String(value || '').replace(/[&<>"']/g, character => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+      }[character]));
+    }
+
+    function renderProducts() {
       const query = searchInput.value.trim().toLowerCase();
       const visible = products.filter(product => {
         return (!activeCategory || product.category_name === activeCategory)
@@ -100,7 +166,7 @@
           <td>
             <div style="display:flex; gap:6px; align-items:center;">
               <button class="icon-btn" data-edit-id="${product.id}">Edit</button>
-              <button class="icon-btn danger" data-delete-id="${product.id}">Delete</button>
+              <button class="icon-btn danger" data-delete-id="${product.id}" data-product-name="${escapeHtml(product.name)}">Delete</button>
             </div>
           </td>
         </tr>`;
@@ -108,10 +174,36 @@
       countLabel.textContent = `${visible.length} items · loaded from database`;
     }
 
-    function escapeHtml(value) {
-      return String(value).replace(/[&<>"']/g, character => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
-      }[character]));
+    function renderCategoryFilters() {
+      categoryFilterRow.innerHTML = [
+        `<button class="tag ${!activeCategory ? 'active' : ''}" type="button" data-filter="">All Categories</button>`,
+        ...categories.map(c => `
+          <button class="tag ${activeCategory === c.name ? 'active' : ''}" type="button" data-filter="${escapeHtml(c.name)}">${escapeHtml(c.name)} (${c.product_count || 0})</button>
+        `)
+      ].join('');
+
+      categoryFilterRow.querySelectorAll('[data-filter]').forEach(button => {
+        button.addEventListener('click', () => {
+          activeCategory = button.dataset.filter;
+          categoryFilterRow.querySelectorAll('[data-filter]').forEach(b => b.classList.toggle('active', b === button));
+          renderProducts();
+        });
+      });
+    }
+
+    function renderCategoryTable() {
+      categoryTableBody.innerHTML = categories.map(c => `
+        <tr>
+          <td class="cell-strong">${escapeHtml(c.name)}</td>
+          <td>${c.product_count || 0}</td>
+          <td style="text-align:right">
+            <div style="display:inline-flex;gap:6px">
+              <button class="icon-btn" type="button" data-edit-cat="${c.id}" data-cat-name="${escapeHtml(c.name)}">Rename</button>
+              <button class="icon-btn danger" type="button" data-delete-cat="${c.id}" data-cat-name="${escapeHtml(c.name)}">Delete</button>
+            </div>
+          </td>
+        </tr>
+      `).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:14px">No categories yet.</td></tr>';
     }
 
     async function loadProducts() {
@@ -119,17 +211,109 @@
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.message);
       products = result.data;
-      render();
+      renderProducts();
     }
 
-    document.querySelectorAll('[data-filter]').forEach(button => {
-      button.addEventListener('click', () => {
-        activeCategory = button.dataset.filter === 'All Categories' ? '' : button.dataset.filter;
-        document.querySelectorAll('[data-filter]').forEach(item => item.classList.toggle('active', item === button));
-        render();
-      });
+    async function loadCategories() {
+      try {
+        const response = await fetch('api/index.php?resource=categories');
+        const result = await response.json();
+        if (response.ok && result.success) {
+          categories = result.data;
+          renderCategoryFilters();
+          renderCategoryTable();
+        }
+      } catch (_) {}
+    }
+
+    function resetCategoryForm() {
+      catEditId.value = '';
+      catNameInput.value = '';
+      catFormLabel.textContent = 'Add New Category';
+      saveCatBtn.textContent = 'Add Category';
+      cancelCatEditBtn.style.display = 'none';
+      catMessage.textContent = '';
+    }
+
+    manageCategoriesBtn.addEventListener('click', () => {
+      resetCategoryForm();
+      categoryModal.classList.add('show');
     });
-    searchInput.addEventListener('input', render);
+
+    closeCategoryModalBtn.addEventListener('click', () => categoryModal.classList.remove('show'));
+    closeCategoryAction.addEventListener('click', () => categoryModal.classList.remove('show'));
+    categoryModal.addEventListener('click', event => {
+      if (event.target === categoryModal) categoryModal.classList.remove('show');
+    });
+
+    cancelCatEditBtn.addEventListener('click', resetCategoryForm);
+
+    categoryForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      catMessage.textContent = '';
+      const name = catNameInput.value.trim();
+      const id = catEditId.value;
+      if (!name) return;
+
+      try {
+        const url = id ? `api/index.php?resource=categories&id=${id}` : 'api/index.php?resource=categories';
+        const method = id ? 'PUT' : 'POST';
+        const response = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          catMessage.textContent = result.message || 'Operation failed.';
+          return;
+        }
+        resetCategoryForm();
+        await loadCategories();
+        await loadProducts();
+      } catch (err) {
+        catMessage.textContent = 'Error: ' + err.message;
+      }
+    });
+
+    categoryTableBody.addEventListener('click', async event => {
+      const editBtn = event.target.closest('[data-edit-cat]');
+      if (editBtn) {
+        catEditId.value = editBtn.dataset.editCat;
+        catNameInput.value = editBtn.dataset.catName;
+        catFormLabel.textContent = 'Rename Category';
+        saveCatBtn.textContent = 'Update';
+        cancelCatEditBtn.style.display = '';
+        catMessage.textContent = '';
+        catNameInput.focus();
+        return;
+      }
+
+      const deleteBtn = event.target.closest('[data-delete-cat]');
+      if (deleteBtn) {
+        const id = deleteBtn.dataset.deleteCat;
+        const name = deleteBtn.dataset.catName;
+        const confirmed = typeof window.bookwiseConfirm === 'function'
+          ? await window.bookwiseConfirm(`Are you sure you want to delete category "${name}"?`, { title: 'Delete Category', confirmText: 'Delete' })
+          : true;
+        if (!confirmed) return;
+        catMessage.textContent = '';
+        try {
+          const response = await fetch(`api/index.php?resource=categories&id=${id}`, { method: 'DELETE' });
+          const result = await response.json();
+          if (!response.ok || !result.success) {
+            catMessage.textContent = result.message || 'Could not delete category.';
+            return;
+          }
+          await loadCategories();
+          await loadProducts();
+        } catch (err) {
+          catMessage.textContent = 'Error: ' + err.message;
+        }
+      }
+    });
+
+    searchInput.addEventListener('input', renderProducts);
     tableBody.addEventListener('click', async event => {
       const editButton = event.target.closest('[data-edit-id]');
       if (editButton) {
@@ -137,22 +321,45 @@
         return;
       }
       const deleteButton = event.target.closest('[data-delete-id]');
-      if (!deleteButton || !confirm('Are you sure you want to delete this product?')) return;
-      const response = await fetch(`api/index.php?resource=products&id=${deleteButton.dataset.deleteId}`, { method: 'DELETE' });
-      const result = await response.json();
-      if (!response.ok || !result.success) return alert(result.message);
-      alert(result.message);
-      await loadProducts();
+      if (!deleteButton) return;
+      const prodId = deleteButton.dataset.deleteId;
+      const product = products.find(p => Number(p.id) === Number(prodId));
+      const pName = deleteButton.dataset.productName || (product ? product.name : 'this product');
+      const confirmFn = window.bookwiseConfirm || (msg => Promise.resolve(window.confirm(msg)));
+      const confirmed = await confirmFn(
+        `Are you sure you want to permanently delete "${pName}" from inventory?`,
+        { title: 'Delete Product', confirmText: 'Delete', danger: true }
+      );
+      if (!confirmed) return;
+      try {
+        const response = await fetch(`api/index.php?resource=products&id=${prodId}`, { method: 'DELETE' });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          if (typeof window.showAppNotification === 'function') {
+            window.showAppNotification('error', 'Delete Product Failed', result.message || 'Could not delete product.');
+          } else {
+            alert(result.message || 'Could not delete product.');
+          }
+          return;
+        }
+        await loadProducts();
+        await loadCategories();
+      } catch (err) {
+        if (typeof window.showAppNotification === 'function') {
+          window.showAppNotification('error', 'Delete Product Failed', err.message);
+        } else {
+          alert('Error: ' + err.message);
+        }
+      }
     });
 
     try {
-      await loadProducts();
+      await Promise.all([loadCategories(), loadProducts()]);
     } catch (error) {
       tableBody.innerHTML = `<tr><td colspan="7">${error.message}</td></tr>`;
     }
   })();
 </script>
- <script src="notifications.js"></script>
 <script src="auth.js"></script>
 </body>
 </html>

@@ -6,6 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script src="notifications.js"></script>
 </head>
 <body>
 <!-- Supplier management page: displays supplier records, filters, and purchase-order actions. -->
@@ -166,10 +167,14 @@
         <td>${money(order.total_amount)}</td>
         <td>${poStatusBadge(order)}</td>
         <td>
-          ${order.status === 'Pending' ? `
-            <button class="icon-btn" data-deliver-id="${order.id}">Mark Delivered</button>
-            <button class="icon-btn" data-cancel-id="${order.id}">Cancel</button>
-          ` : ''}
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button class="icon-btn" data-edit-po-id="${order.id}">Edit</button>
+            ${order.status === 'Pending' ? `
+              <button class="icon-btn" data-deliver-id="${order.id}">Delivered</button>
+              <button class="icon-btn" data-cancel-id="${order.id}">Cancel</button>
+            ` : ''}
+            <button class="icon-btn danger" data-delete-po-id="${order.id}">Delete</button>
+          </div>
         </td>
       </tr>`).join('');
 
@@ -223,22 +228,71 @@
         const supplierId = deleteButton.dataset.deleteId;
         const supplier = suppliers.find(s => Number(s.id) === Number(supplierId));
         const sName = supplier ? supplier.name : 'this supplier';
-        if (!confirm(`Are you sure you want to delete supplier "${sName}"?`)) return;
+        const confirmed = typeof window.bookwiseConfirm === 'function'
+          ? await window.bookwiseConfirm(`Are you sure you want to delete supplier "${sName}"?`, { title: 'Delete Supplier', confirmText: 'Delete' })
+          : true;
+        if (!confirmed) return;
         try {
           const response = await fetch(`api/index.php?resource=suppliers&id=${supplierId}`, { method: 'DELETE' });
           const result = await response.json();
-          if (!response.ok || !result.success) return alert(result.message || 'Could not delete supplier.');
-          alert(result.message || 'Supplier deleted successfully.');
+          if (!response.ok || !result.success) {
+            if (typeof window.showAppNotification === 'function') {
+              window.showAppNotification('error', 'Delete Supplier Failed', result.message || 'Could not delete supplier.');
+            } else {
+              alert(result.message || 'Could not delete supplier.');
+            }
+            return;
+          }
           await loadSuppliers();
         } catch (err) {
-          alert('Error deleting supplier: ' + err.message);
+          if (typeof window.showAppNotification === 'function') {
+            window.showAppNotification('error', 'Delete Supplier Failed', err.message);
+          } else {
+            alert('Error deleting supplier: ' + err.message);
+          }
         }
       }
     });
 
     poTableBody.addEventListener('click', async event => {
+      const editPoBtn = event.target.closest('[data-edit-po-id]');
+      const deletePoBtn = event.target.closest('[data-delete-po-id]');
       const deliverButton = event.target.closest('[data-deliver-id]');
       const cancelButton = event.target.closest('[data-cancel-id]');
+
+      if (editPoBtn) {
+        window.location.href = `create-purchase-order.html?id=${editPoBtn.dataset.editPoId}`;
+        return;
+      }
+      if (deletePoBtn) {
+        const poId = deletePoBtn.dataset.deletePoId;
+        const po = purchaseOrders.find(o => Number(o.id) === Number(poId));
+        const ref = po ? po.po_ref : 'this purchase order';
+        const confirmed = typeof window.bookwiseConfirm === 'function'
+          ? await window.bookwiseConfirm(`Are you sure you want to permanently delete purchase order "${ref}"?`, { title: 'Delete Purchase Order', confirmText: 'Delete' })
+          : true;
+        if (!confirmed) return;
+        try {
+          const response = await fetch(`api/index.php?resource=purchase_orders&id=${poId}&permanent=true`, { method: 'DELETE' });
+          const result = await response.json();
+          if (!response.ok || !result.success) {
+            if (typeof window.showAppNotification === 'function') {
+              window.showAppNotification('error', 'Delete Purchase Order Failed', result.message || 'Could not delete purchase order.');
+            } else {
+              alert(result.message || 'Could not delete purchase order.');
+            }
+            return;
+          }
+          await loadPurchaseOrders();
+        } catch (err) {
+          if (typeof window.showAppNotification === 'function') {
+            window.showAppNotification('error', 'Delete Purchase Order Failed', err.message);
+          } else {
+            alert('Error deleting purchase order: ' + err.message);
+          }
+        }
+        return;
+      }
       if (deliverButton) {
         const response = await fetch(`api/index.php?resource=purchase_orders&id=${deliverButton.dataset.deliverId}`, {
           method: 'PATCH',
@@ -249,10 +303,21 @@
         if (!response.ok || !result.success) return alert(result.message);
         await loadPurchaseOrders();
       }
-      if (cancelButton && confirm('Cancel this purchase order?')) {
+      if (cancelButton) {
+        const confirmed = typeof window.bookwiseConfirm === 'function'
+          ? await window.bookwiseConfirm('Cancel this purchase order?', { title: 'Cancel Purchase Order', confirmText: 'Cancel Order', danger: false })
+          : true;
+        if (!confirmed) return;
         const response = await fetch(`api/index.php?resource=purchase_orders&id=${cancelButton.dataset.cancelId}`, { method: 'DELETE' });
         const result = await response.json();
-        if (!response.ok || !result.success) return alert(result.message);
+        if (!response.ok || !result.success) {
+          if (typeof window.showAppNotification === 'function') {
+            window.showAppNotification('error', 'Cancel Failed', result.message || 'Could not cancel purchase order.');
+          } else {
+            alert(result.message);
+          }
+          return;
+        }
         await loadPurchaseOrders();
       }
     });
@@ -265,7 +330,6 @@
     });
   })();
 </script>
- <script src="notifications.js"></script>
 <script src="auth.js"></script>
 </body>
 </html>
