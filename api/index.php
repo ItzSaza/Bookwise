@@ -262,14 +262,14 @@ try {
     $userRole = $_SESSION['user']['role'] ?? '';
 
     // Role-based access control for API endpoints:
-    // 1. Admin-only resources: users and employees (Services & Staff)
-    if (in_array($resource, ['users', 'employees'], true) && $userRole !== 'Admin') {
+    // 1. Admin-only resources: users and employees (Services & Staff) and their reports
+    if (in_array($resource, ['users', 'employees', 'users-report', 'staff-report'], true) && $userRole !== 'Admin') {
         respond(['success' => false, 'message' => 'Access denied: Admin privileges required.'], 403);
     }
 
-    // 2. Cashier-restricted resources: Cashiers can only access Orders & POS (sales, read-only products/categories)
+    // 2. Cashier-restricted resources: Cashiers can only access Orders & POS (sales, read-only products/categories) and sales-report
     if ($userRole === 'Cashier') {
-        $cashierAllowed = ['sales', 'categories', 'products'];
+        $cashierAllowed = ['sales', 'categories', 'products', 'sales-report'];
         if (!in_array($resource, $cashierAllowed, true) || ($resource === 'products' && $method !== 'GET')) {
             respond(['success' => false, 'message' => 'Access denied: Cashiers can only access Orders & POS.'], 403);
         }
@@ -989,6 +989,372 @@ try {
             'expense_breakdown' => $expenseBreakdown,
             'ledger' => $ledger,
             'transaction_count' => count($ledger)
+        ]]);
+    }
+
+    // Inventory report endpoint: returns live inventory valuations, stock alerts, category breakdowns, and catalog ledger.
+    if ($resource === 'inventory-report' && $method === 'GET') {
+        $categoryId = filter_var($_GET['category_id'] ?? null, FILTER_VALIDATE_INT) ?: null;
+        $stockStatus = trim((string) ($_GET['stock_status'] ?? 'all'));
+
+        $kpis = $database->query(
+            "SELECT
+                COUNT(*) AS total_products,
+                COALESCE(SUM(stock_quantity), 0) AS total_units,
+                COALESCE(SUM(unit_price * stock_quantity), 0) AS total_valuation,
+                COALESCE(SUM(CASE WHEN stock_quantity <= reorder_level AND stock_quantity > 0 THEN 1 ELSE 0 END), 0) AS low_stock_count,
+                COALESCE(SUM(CASE WHEN stock_quantity = 0 THEN 1 ELSE 0 END), 0) AS out_of_stock_count,
+                COALESCE(SUM(CASE WHEN stock_quantity > reorder_level THEN 1 ELSE 0 END), 0) AS healthy_stock_count
+             FROM products
+             WHERE status = 'Active'"
+        )->fetch();
+
+        $catStmt = $database->query(
+            "SELECT
+                c.id, c.name,
+                COUNT(p.id) AS product_count,
+                COALESCE(SUM(p.stock_quantity), 0) AS total_units,
+                COALESCE(SUM(p.unit_price * p.stock_quantity), 0) AS valuation,
+                COALESCE(SUM(CASE WHEN p.stock_quantity <= p.reorder_level THEN 1 ELSE 0 END), 0) AS low_stock_items
+             FROM categories c
+             LEFT JOIN products p ON p.category_id = c.id AND p.status = 'Active'
+             GROUP BY c.id, c.name
+             ORDER BY valuation DESC, c.name ASC"
+        );
+        $categoryBreakdown = $catStmt->fetchAll();
+
+        $where = ["p.status = 'Active'"];
+        $params = [];
+        if ($categoryId) {
+            $where[] = "p.category_id = :category_id";
+            $params['category_id'] = $categoryId;
+        }
+        if ($stockStatus === 'low_stock') {
+            $where[] = "p.stock_quantity <= p.reorder_level AND p.stock_quantity > 0";
+        } elseif ($stockStatus === 'out_of_stock') {
+            $where[] = "p.stock_quantity = 0";
+        } elseif ($stockStatus === 'healthy') {
+            $where[] = "p.stock_quantity > p.reorder_level";
+        }
+
+        $sql = "SELECT
+                    p.id, p.sku, p.name, p.isbn_barcode, p.unit_price,
+                    p.stock_quantity, p.reorder_level,
+                    (p.unit_price * p.stock_quantity) AS valuation,
+                    c.name AS category_name,
+                    s.name AS supplier_name,
+                    CASE
+                        WHEN p.stock_quantity = 0 THEN 'Out of Stock'
+                        WHEN p.stock_quantity <= p.reorder_level THEN 'Low Stock'
+                        ELSE 'Healthy'
+                    END AS stock_health
+                FROM products p
+                LEFT JOIN categories c ON c.id = p.category_id
+                LEFT JOIN suppliers s ON s.id = p.primary_supplier_id
+                WHERE " . implode(' AND ', $where) . "
+                ORDER BY p.name ASC";
+        $stmt = $database->prepare($sql);
+        $stmt->execute($params);
+        $items = $stmt->fetchAll();
+
+        respond(['success' => true, 'data' => [
+            'kpis' => [
+                'total_products' => (int) $kpis['total_products'],
+                'total_units' => (int) $kpis['total_units'],
+                'total_valuation' => (float) $kpis['total_valuation'],
+                'low_stock_count' => (int) $kpis['low_stock_count'],
+                'out_of_stock_count' => (int) $kpis['out_of_stock_count'],
+                'healthy_stock_count' => (int) $kpis['healthy_stock_count']
+            ],
+            'category_breakdown' => $categoryBreakdown,
+            'items' => $items,
+            'total_items_count' => count($items)
+        ]]);
+    }
+
+    // Supplier & procurement report endpoint: returns supplier spend, PO fulfillment rates, and PO ledger.
+    if ($resource === 'supplier-report' && $method === 'GET') {
+        $start = trim((string) ($_GET['start'] ?? date('Y-01-01')));
+        $end = trim((string) ($_GET['end'] ?? date('Y-m-d')));
+        $poStatus = trim((string) ($_GET['status'] ?? 'all'));
+
+        $kpiStmt = $database->prepare(
+            "SELECT
+                (SELECT COUNT(*) FROM suppliers WHERE status = 'Active') AS active_suppliers,
+                (SELECT COUNT(*) FROM purchase_orders WHERE order_date >= :po_start AND order_date <= :po_end) AS total_pos,
+                (SELECT COALESCE(SUM(total_amount), 0) FROM purchase_orders WHERE status != 'Cancelled' AND order_date >= :spend_start AND order_date <= :spend_end) AS total_spend,
+                (SELECT COUNT(*) FROM purchase_orders WHERE status = 'Pending') AS pending_pos,
+                (SELECT COUNT(*) FROM purchase_orders WHERE status = 'Pending' AND expected_date IS NOT NULL AND expected_date < CURRENT_DATE()) AS overdue_pos"
+        );
+        $kpiStmt->execute([
+            'po_start' => $start, 'po_end' => $end,
+            'spend_start' => $start, 'spend_end' => $end
+        ]);
+        $kpis = $kpiStmt->fetch();
+
+        $suppStmt = $database->prepare(
+            "SELECT
+                s.id, s.name, s.category, s.contact_person, s.phone, s.payment_terms, s.status,
+                COUNT(po.id) AS po_count,
+                COALESCE(SUM(CASE WHEN po.status != 'Cancelled' THEN po.total_amount ELSE 0 END), 0) AS total_spend,
+                COALESCE(SUM(CASE WHEN po.status = 'Delivered' THEN 1 ELSE 0 END), 0) AS delivered_count
+             FROM suppliers s
+             LEFT JOIN purchase_orders po ON po.supplier_id = s.id AND po.order_date >= :start AND po.order_date <= :end
+             GROUP BY s.id, s.name
+             ORDER BY total_spend DESC, s.name ASC"
+        );
+        $suppStmt->execute(['start' => $start, 'end' => $end]);
+        $supplierBreakdown = $suppStmt->fetchAll();
+
+        $where = ["po.order_date >= :start AND po.order_date <= :end"];
+        $params = ['start' => $start, 'end' => $end];
+        if ($poStatus !== 'all' && in_array($poStatus, ['Pending', 'Delivered', 'Cancelled'], true)) {
+            $where[] = "po.status = :status";
+            $params['status'] = $poStatus;
+        }
+
+        $poSql = "SELECT
+                    po.id, po.po_ref, s.name AS supplier_name, s.category AS supplier_category,
+                    po.order_date, po.expected_date, po.total_amount, po.status,
+                    (po.status = 'Pending' AND po.expected_date IS NOT NULL AND po.expected_date < CURRENT_DATE()) AS is_overdue,
+                    (SELECT COUNT(*) FROM purchase_order_items WHERE purchase_order_id = po.id) AS item_count
+                  FROM purchase_orders po
+                  LEFT JOIN suppliers s ON s.id = po.supplier_id
+                  WHERE " . implode(' AND ', $where) . "
+                  ORDER BY po.order_date DESC, po.id DESC";
+        $poStmt = $database->prepare($poSql);
+        $poStmt->execute($params);
+        $orders = $poStmt->fetchAll();
+
+        respond(['success' => true, 'data' => [
+            'start' => $start, 'end' => $end,
+            'kpis' => [
+                'active_suppliers' => (int) $kpis['active_suppliers'],
+                'total_pos' => (int) $kpis['total_pos'],
+                'total_spend' => (float) $kpis['total_spend'],
+                'pending_pos' => (int) $kpis['pending_pos'],
+                'overdue_pos' => (int) $kpis['overdue_pos']
+            ],
+            'supplier_breakdown' => $supplierBreakdown,
+            'orders' => $orders,
+            'total_orders_count' => count($orders)
+        ]]);
+    }
+
+    // Sales & POS report endpoint: returns sales volume, AOV, payment method split, top products, and orders ledger.
+    if ($resource === 'sales-report' && $method === 'GET') {
+        $start = trim((string) ($_GET['start'] ?? date('Y-m-01')));
+        $end = trim((string) ($_GET['end'] ?? date('Y-m-d')));
+        $paymentMethod = trim((string) ($_GET['payment_method'] ?? 'all'));
+        $orderStatus = trim((string) ($_GET['status'] ?? 'all'));
+
+        $kpiStmt = $database->prepare(
+            "SELECT
+                COUNT(*) AS total_orders,
+                COALESCE(SUM(CASE WHEN status = 'Paid' THEN total_amount ELSE 0 END), 0) AS total_sales,
+                COALESCE(SUM(CASE WHEN status = 'Paid' THEN discount_amount ELSE 0 END), 0) AS total_discounts,
+                COALESCE(SUM(CASE WHEN status = 'Paid' THEN tax_amount ELSE 0 END), 0) AS total_tax,
+                COALESCE(SUM(CASE WHEN status = 'Paid' THEN 1 ELSE 0 END), 0) AS paid_orders_count
+             FROM sales
+             WHERE created_at >= :start AND created_at < DATE_ADD(:end, INTERVAL 1 DAY)"
+        );
+        $kpiStmt->execute(['start' => $start, 'end' => $end]);
+        $kpis = $kpiStmt->fetch();
+
+        $itemsSoldStmt = $database->prepare(
+            "SELECT COALESCE(SUM(si.quantity), 0)
+             FROM sale_items si
+             JOIN sales s ON s.id = si.sale_id
+             WHERE s.status = 'Paid' AND s.created_at >= :start AND s.created_at < DATE_ADD(:end, INTERVAL 1 DAY)"
+        );
+        $itemsSoldStmt->execute(['start' => $start, 'end' => $end]);
+        $itemsSold = (int) $itemsSoldStmt->fetchColumn();
+
+        $payStmt = $database->prepare(
+            "SELECT payment_method, COUNT(*) AS count, COALESCE(SUM(total_amount), 0) AS amount
+             FROM sales
+             WHERE status = 'Paid' AND created_at >= :start AND created_at < DATE_ADD(:end, INTERVAL 1 DAY)
+             GROUP BY payment_method"
+        );
+        $payStmt->execute(['start' => $start, 'end' => $end]);
+        $paymentBreakdown = $payStmt->fetchAll();
+
+        $topStmt = $database->prepare(
+            "SELECT si.product_name, SUM(si.quantity) AS qty_sold, SUM(si.line_total) AS total_revenue
+             FROM sale_items si
+             JOIN sales s ON s.id = si.sale_id
+             WHERE s.status = 'Paid' AND s.created_at >= :start AND s.created_at < DATE_ADD(:end, INTERVAL 1 DAY)
+             GROUP BY si.product_name
+             ORDER BY qty_sold DESC
+             LIMIT 8"
+        );
+        $topStmt->execute(['start' => $start, 'end' => $end]);
+        $topProducts = $topStmt->fetchAll();
+
+        $where = ["created_at >= :start AND created_at < DATE_ADD(:end, INTERVAL 1 DAY)"];
+        $params = ['start' => $start, 'end' => $end];
+        if ($paymentMethod !== 'all' && in_array($paymentMethod, ['Cash', 'Card'], true)) {
+            $where[] = "payment_method = :pay_method";
+            $params['pay_method'] = $paymentMethod;
+        }
+        if ($orderStatus !== 'all' && in_array($orderStatus, ['Paid', 'Pending', 'Refunded'], true)) {
+            $where[] = "status = :order_status";
+            $params['order_status'] = $orderStatus;
+        }
+
+        $orderSql = "SELECT s.id, s.order_ref, s.customer_name, s.payment_method, s.subtotal,
+                            s.discount_amount, s.tax_amount, s.total_amount, s.status,
+                            DATE_FORMAT(s.created_at, '%Y-%m-%d %H:%i') AS formatted_date,
+                            (SELECT COUNT(*) FROM sale_items WHERE sale_id = s.id) AS item_count
+                     FROM sales s
+                     WHERE " . implode(' AND ', $where) . "
+                     ORDER BY s.created_at DESC, s.id DESC";
+        $orderStmt = $database->prepare($orderSql);
+        $orderStmt->execute($params);
+        $orders = $orderStmt->fetchAll();
+
+        $paidOrders = (int) $kpis['paid_orders_count'];
+        $totalSales = (float) $kpis['total_sales'];
+        $aov = $paidOrders > 0 ? $totalSales / $paidOrders : 0;
+
+        respond(['success' => true, 'data' => [
+            'start' => $start, 'end' => $end,
+            'kpis' => [
+                'total_orders' => (int) $kpis['total_orders'],
+                'total_sales' => $totalSales,
+                'total_discounts' => (float) $kpis['total_discounts'],
+                'total_tax' => (float) $kpis['total_tax'],
+                'average_order_value' => $aov,
+                'items_sold' => $itemsSold
+            ],
+            'payment_breakdown' => $paymentBreakdown,
+            'top_products' => $topProducts,
+            'orders' => $orders,
+            'total_orders_count' => count($orders)
+        ]]);
+    }
+
+    // Services & staff report endpoint: returns staff strength, status distribution, and department roles.
+    if ($resource === 'staff-report' && $method === 'GET') {
+        $department = trim((string) ($_GET['department'] ?? 'all'));
+        $status = trim((string) ($_GET['status'] ?? 'all'));
+
+        $kpis = $database->query(
+            "SELECT
+                COUNT(*) AS total_employees,
+                COALESCE(SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END), 0) AS active_count,
+                COALESCE(SUM(CASE WHEN status = 'leave' THEN 1 ELSE 0 END), 0) AS leave_count,
+                COALESCE(SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END), 0) AS inactive_count,
+                COUNT(DISTINCT department) AS department_count
+             FROM employees"
+        )->fetch();
+
+        $deptStmt = $database->query(
+            "SELECT
+                department,
+                COUNT(*) AS total_count,
+                COALESCE(SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END), 0) AS active_count,
+                GROUP_CONCAT(DISTINCT role SEPARATOR ', ') AS roles
+             FROM employees
+             GROUP BY department
+             ORDER BY total_count DESC, department ASC"
+        );
+        $departmentBreakdown = $deptStmt->fetchAll();
+
+        $where = ["1 = 1"];
+        $params = [];
+        if ($department !== 'all' && $department !== '') {
+            $where[] = "department = :department";
+            $params['department'] = $department;
+        }
+        if ($status !== 'all' && in_array($status, ['active', 'leave', 'inactive'], true)) {
+            $where[] = "status = :status";
+            $params['status'] = $status;
+        }
+
+        $empSql = "SELECT id, name, role, phone, department, status,
+                          DATE_FORMAT(created_at, '%Y-%m-%d') AS joined_date
+                   FROM employees
+                   WHERE " . implode(' AND ', $where) . "
+                   ORDER BY name ASC";
+        $empStmt = $database->prepare($empSql);
+        $empStmt->execute($params);
+        $employees = $empStmt->fetchAll();
+
+        respond(['success' => true, 'data' => [
+            'kpis' => [
+                'total_employees' => (int) $kpis['total_employees'],
+                'active_count' => (int) $kpis['active_count'],
+                'leave_count' => (int) $kpis['leave_count'],
+                'inactive_count' => (int) $kpis['inactive_count'],
+                'department_count' => (int) $kpis['department_count']
+            ],
+            'department_breakdown' => $departmentBreakdown,
+            'employees' => $employees,
+            'total_employees_count' => count($employees)
+        ]]);
+    }
+
+    // User management report endpoint: returns system account counts, role distribution, and audit directory.
+    if ($resource === 'users-report' && $method === 'GET') {
+        $role = trim((string) ($_GET['role'] ?? 'all'));
+        $status = trim((string) ($_GET['status'] ?? 'all'));
+
+        $kpis = $database->query(
+            "SELECT
+                COUNT(*) AS total_users,
+                COALESCE(SUM(CASE WHEN status = 'Active' THEN 1 ELSE 0 END), 0) AS active_users,
+                COALESCE(SUM(CASE WHEN status = 'Inactive' THEN 1 ELSE 0 END), 0) AS inactive_users,
+                COALESCE(SUM(CASE WHEN role = 'Admin' THEN 1 ELSE 0 END), 0) AS admin_count,
+                COALESCE(SUM(CASE WHEN role = 'Staff' THEN 1 ELSE 0 END), 0) AS staff_count,
+                COALESCE(SUM(CASE WHEN role = 'Cashier' THEN 1 ELSE 0 END), 0) AS cashier_count
+             FROM users"
+        )->fetch();
+
+        $roleStmt = $database->query(
+            "SELECT
+                role,
+                COUNT(*) AS count,
+                COALESCE(SUM(CASE WHEN status = 'Active' THEN 1 ELSE 0 END), 0) AS active_count
+             FROM users
+             GROUP BY role
+             ORDER BY count DESC"
+        );
+        $roleBreakdown = $roleStmt->fetchAll();
+
+        $where = ["1 = 1"];
+        $params = [];
+        if ($role !== 'all' && in_array($role, ['Admin', 'Staff', 'Cashier'], true)) {
+            $where[] = "role = :role";
+            $params['role'] = $role;
+        }
+        if ($status !== 'all' && in_array($status, ['Active', 'Inactive'], true)) {
+            $where[] = "status = :status";
+            $params['status'] = $status;
+        }
+
+        $userSql = "SELECT id, full_name, username, email, role, status,
+                           DATE_FORMAT(created_at, '%Y-%m-%d %H:%i') AS created_at,
+                           DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i') AS updated_at
+                    FROM users
+                    WHERE " . implode(' AND ', $where) . "
+                    ORDER BY role ASC, full_name ASC";
+        $userStmt = $database->prepare($userSql);
+        $userStmt->execute($params);
+        $users = $userStmt->fetchAll();
+
+        respond(['success' => true, 'data' => [
+            'kpis' => [
+                'total_users' => (int) $kpis['total_users'],
+                'active_users' => (int) $kpis['active_users'],
+                'inactive_users' => (int) $kpis['inactive_users'],
+                'admin_count' => (int) $kpis['admin_count'],
+                'staff_count' => (int) $kpis['staff_count'],
+                'cashier_count' => (int) $kpis['cashier_count']
+            ],
+            'role_breakdown' => $roleBreakdown,
+            'users' => $users,
+            'total_users_count' => count($users)
         ]]);
     }
 

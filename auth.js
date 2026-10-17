@@ -51,15 +51,16 @@
       try { localStorage.setItem('bookwise_user', JSON.stringify(user)); } catch (_) {}
 
       // Client-side role-based page gating
-      // 1. Cashier is restricted ONLY to orders-pos.html
-      // 2. Staff cannot access user-management.html or services-staff.html
+      // 1. Cashier is restricted to orders-pos.html and sales-report.html
+      // 2. Staff cannot access user-management or services-staff (and their reports)
       if (user.role === 'Cashier') {
-        if (path !== 'orders-pos.html') {
+        const cashierAllowed = ['orders-pos.html', 'sales-report.html'];
+        if (!cashierAllowed.includes(path)) {
           location.replace('orders-pos.html');
           return;
         }
       } else if (user.role === 'Staff') {
-        const staffForbidden = ['user-management.html', 'services-staff.html'];
+        const staffForbidden = ['user-management.html', 'users-report.html', 'services-staff.html', 'staff-report.html'];
         if (staffForbidden.includes(path)) {
           location.replace('inventory.html');
           return;

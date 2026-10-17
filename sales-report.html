@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BOOKWISE — Sales &amp; POS Performance Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#1b2a4a;--burgundy:#7a2e2e;--gold:#c9a227;--ink:#232323;--muted:#6b7280;--cream:#f7f3ea;--line:#e4ddcb;--green:#2f6b4f;--red:#b42318;--amber:#b45309}
+*{box-sizing:border-box}body{margin:0;background:#ececec;color:var(--ink);font-family:Inter,Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.toolbar{max-width:1000px;margin:24px auto 0;display:flex;gap:10px;align-items:center;justify-content:space-between;padding:0 18px}
+.toolbar .actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:0;border-radius:7px;padding:10px 14px;font-weight:700;cursor:pointer;background:var(--navy);color:white}.btn.secondary{background:white;color:var(--navy);border:1px solid #cbd5e1}.btn:disabled{opacity:.55;cursor:wait}
+.filters{max-width:1000px;margin:12px auto;background:white;border:1px solid #ddd;padding:14px 18px;border-radius:9px;display:flex;align-items:end;gap:12px;flex-wrap:wrap}.field{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--muted);font-weight:700}.field select,.field input{font:inherit;color:var(--ink);padding:9px;border:1px solid #cbd5e1;border-radius:6px;min-width:140px}.message{font-size:12px;color:var(--muted);margin-left:auto}
+.page{background:white;width:min(210mm,calc(100% - 32px));min-height:297mm;margin:18px auto 40px;padding:14mm 15mm;box-shadow:0 4px 18px #00000012}
+.header{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;padding-bottom:18px;border-bottom:3px solid var(--burgundy);margin-bottom:18px}.brand-area{display:flex;gap:12px}.brand-mark{width:42px;height:42px;border-radius:8px;background:var(--gold);color:var(--navy);font-family:Fraunces,serif;font-size:24px;font-weight:700;display:grid;place-items:center}.brand-text h1{font:700 25px Fraunces,serif;color:var(--navy);margin:0 0 5px}.brand-text p,.report-meta p{margin:0;font-size:10px;color:var(--muted);line-height:1.5}.report-meta{text-align:right}.report-meta h2{font-size:13px;letter-spacing:1px;color:var(--burgundy);margin:0 0 7px;text-transform:uppercase}
+.sub-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:22px}.label{font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.7px;text-transform:uppercase;margin-bottom:5px}.val{font-size:11px;color:var(--navy);font-weight:700}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px}.kpi-card{border:1px solid var(--line);padding:12px;border-bottom:3px solid var(--navy);min-width:0}.kpi-card.rev{border-bottom-color:var(--gold)}.kpi-card.exp{border-bottom-color:var(--green)}.kpi-card.net{border-bottom-color:var(--burgundy)}.kpi-card.out{border-bottom-color:var(--amber)}.kpi-card .label{font-size:9px}.kpi-card .val{font:600 18px Fraunces,serif;overflow-wrap:anywhere}
+.section-title{font-size:13px;font-weight:700;color:var(--navy);margin:22px 0 9px}table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:20px}th{background:var(--cream);color:var(--muted);text-transform:uppercase;font-size:8px;letter-spacing:.5px;padding:9px 8px;text-align:left}td{padding:8px;border-bottom:1px solid #f0ecdf;overflow-wrap:anywhere}.right{text-align:right}.total-row td{font-weight:700;color:var(--navy);border-top:1px solid var(--line)}.empty{text-align:center;color:var(--muted);padding:18px}
+.summary-banner{background:var(--navy);color:white;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;gap:15px;margin:10px 0 22px}.summary-banner .label{color:#e1e7f2;margin:0}.summary-banner .val{font:600 23px Fraunces,serif;color:white}.footnote{font-size:9px;color:var(--muted);line-height:1.5}.error{color:var(--red)}
+.badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.badge.paid{background:#dcfce7;color:#15803d}.badge.pending{background:#fef3c7;color:#b45309}.badge.refunded{background:#fee2e2;color:#b91c1c}
+.signatures{margin-top:35px;display:grid;grid-template-columns:1fr 1fr;gap:40px}
+.sig-box{border-top:1px dashed #94a3b8;padding-top:8px;font-size:10px;color:var(--muted)}
+.sig-box strong{display:block;color:var(--navy);font-size:11px;margin-bottom:2px}
+@media(max-width:650px){.header{flex-direction:column}.report-meta{text-align:left}.kpis{grid-template-columns:repeat(2,1fr)}.sub-meta{grid-template-columns:1fr 1fr}.page{padding:22px 16px}.toolbar{align-items:flex-start;flex-direction:column}.message{margin-left:0}}
+@media print{body{background:white}.toolbar,.filters{display:none!important}.page{width:100%;min-height:0;margin:0;padding:0;box-shadow:none}.kpi-card,th,.summary-banner,.badge{-webkit-print-color-adjust:exact;print-color-adjust:exact}@page{size:A4;margin:14mm}thead{display:table-header-group}tr{break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <strong>BOOKWISE / Orders &amp; POS</strong>
+  <div class="actions">
+    <button class="btn secondary" type="button" onclick="location.href='orders-pos.html'">← Back to POS</button>
+    <button class="btn" type="button" id="refreshBtn">Refresh Data</button>
+    <button class="btn" type="button" onclick="window.print()">Print / Save PDF</button>
+    <button class="btn secondary" type="button" id="csvBtn">Export CSV</button>
+  </div>
+</div>
+
+<form class="filters" id="filterForm">
+  <label class="field">Date From
+    <input type="date" id="startDate">
+  </label>
+  <label class="field">Date To
+    <input type="date" id="endDate">
+  </label>
+  <label class="field">Payment Tender
+    <select id="paymentFilter">
+      <option value="all">All Payment Types</option>
+      <option value="Cash">Cash</option>
+      <option value="Card">Card</option>
+    </select>
+  </label>
+  <label class="field">Order Status
+    <select id="statusFilter">
+      <option value="all">All Statuses</option>
+      <option value="Paid">Paid</option>
+      <option value="Pending">Pending</option>
+      <option value="Refunded">Refunded</option>
+    </select>
+  </label>
+  <button class="btn" type="submit">Generate Report</button>
+  <span class="message" id="statusMessage" role="status">Loading database records…</span>
+</form>
+
+<main class="page">
+  <header class="header">
+    <div class="brand-area"><div class="brand-mark">B</div><div class="brand-text"><h1>Bookwise</h1><p>Minre Book Shop · Point of Sale &amp; Retail Operations<br>Live transactional sales revenue compiled from the BOOKWISE database</p></div></div>
+    <div class="report-meta"><h2>Sales &amp; POS Performance Report</h2><p>Audit Period: <strong id="periodText">—</strong></p><p>Generated: <span id="generatedAt">—</span></p></div>
+  </header>
+  <div class="sub-meta">
+    <div><div class="label">Report Scope</div><div class="val">Retail Revenue &amp; POS Orders Audit</div></div>
+    <div><div class="label">Prepared By</div><div class="val" id="preparedBy">Current User</div></div>
+    <div><div class="label">Data Source</div><div class="val">Live MySQL Sales Records</div></div>
+  </div>
+
+  <section class="kpis">
+    <div class="kpi-card rev"><div class="label">Total Paid Revenue</div><div class="val" id="totalSalesVal">Rs. —</div></div>
+    <div class="kpi-card exp"><div class="label">Paid Orders Completed</div><div class="val" id="paidOrdersVal">—</div></div>
+    <div class="kpi-card net"><div class="label">Average Order Value (AOV)</div><div class="val" id="aovVal">Rs. —</div></div>
+    <div class="kpi-card out"><div class="label">Total Items Sold</div><div class="val" id="itemsSoldVal">—</div></div>
+  </section>
+
+  <h3 class="section-title">Tender &amp; Payment Method Breakdown</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Payment Tender</th>
+        <th class="right">Transactions</th>
+        <th class="right">Total Revenue</th>
+        <th class="right">% of Sales Volume</th>
+      </tr>
+    </thead>
+    <tbody id="paymentBody"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+  </table>
+
+  <h3 class="section-title">Top Selling Products (Fastest Moving Catalog Items)</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Product Name</th>
+        <th class="right">Units Sold</th>
+        <th class="right">Gross Sales (Rs.)</th>
+        <th class="right">Average Realized Unit Price</th>
+      </tr>
+    </thead>
+    <tbody id="topProductsBody"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+  </table>
+
+  <div class="summary-banner">
+    <div>
+      <div class="label">Total Realized Net Cash Inflow (Period)</div>
+      <div class="footnote" style="color:#d5dced" id="bannerNote">Net sales collected after promotional discounts across verified POS transactions</div>
+    </div>
+    <div class="val" id="bannerTotal">Rs. —</div>
+  </div>
+
+  <h3 class="section-title">Point of Sale Transaction Ledger</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Receipt / Order Ref</th>
+        <th>Date &amp; Time</th>
+        <th>Customer</th>
+        <th class="right">Items</th>
+        <th class="right">Subtotal</th>
+        <th class="right">Discount</th>
+        <th class="right">Tax</th>
+        <th class="right">Final Amount</th>
+        <th>Tender</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody id="ordersBody"><tr><td colspan="10" class="empty">Loading…</td></tr></tbody>
+  </table>
+
+  <div class="signatures">
+    <div class="sig-box">
+      <strong id="sigPrepared">Audited &amp; Reconciled By: Cashier / Sales Executive</strong>
+      <span>Signature &amp; Verification Timestamp</span>
+    </div>
+    <div class="sig-box">
+      <strong>Approved By: Store Supervisor / Account Manager</strong>
+      <span>Signature &amp; Official Seal</span>
+    </div>
+  </div>
+
+  <p class="footnote" style="margin-top:24px;">Revenue calculations include all transactions marked as 'Paid' within the specified period. Pending or refunded orders are documented in the transaction ledger for audit reconciliation but excluded from realized revenue totals. Compiled in compliance with standard retail auditing procedures.</p>
+</main>
+
+<script src="notifications.js"></script>
+<script src="auth.js"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const money = value => 'Rs. ' + Number(value || 0).toLocaleString('en-LK', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let latestReport = null;
+
+  function initDates() {
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    const toISO = d => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    $('startDate').value = toISO(firstDay);
+    $('endDate').value = toISO(today);
+  }
+
+  async function loadReport(event) {
+    if (event) event.preventDefault();
+    const start = $('startDate').value;
+    const end = $('endDate').value;
+    const payment = $('paymentFilter').value;
+    const status = $('statusFilter').value;
+
+    $('refreshBtn').disabled = true;
+    $('statusMessage').textContent = 'Loading sales records from database…';
+    $('statusMessage').className = 'message';
+
+    try {
+      let url = `api/index.php?resource=sales-report&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&payment_method=${encodeURIComponent(payment)}&status=${encodeURIComponent(status)}`;
+      const res = await fetch(url, {credentials:'same-origin', cache:'no-store'});
+      const result = await res.json();
+      if (!res.ok || !result.success) throw new Error(result.message || 'Could not load sales report.');
+      latestReport = result.data;
+      render(latestReport);
+      $('statusMessage').textContent = `Updated from database · ${latestReport.total_orders_count} orders in ledger`;
+    } catch (err) {
+      $('statusMessage').textContent = err.message || 'Failed to load sales report.';
+      $('statusMessage').className = 'message error';
+    } finally {
+      $('refreshBtn').disabled = false;
+    }
+  }
+
+  function render(data) {
+    $('periodText').textContent = `${data.start} to ${data.end}`;
+    $('generatedAt').textContent = new Date().toLocaleString();
+
+    const u = window.currentUser || JSON.parse(sessionStorage.getItem('bookwise_user') || localStorage.getItem('bookwise_user') || '{}');
+    if (u && (u.full_name || u.username)) {
+      const name = u.full_name || u.username;
+      $('preparedBy').textContent = `${name} (${u.role || 'Staff'})`;
+      $('sigPrepared').textContent = `Audited & Reconciled By: ${name} (${u.role || 'Cashier'})`;
+    }
+
+    const k = data.kpis;
+    $('totalSalesVal').textContent = money(k.total_sales);
+    $('paidOrdersVal').textContent = Number(k.total_orders || 0).toLocaleString();
+    $('aovVal').textContent = money(k.average_order_value);
+    $('itemsSoldVal').textContent = Number(k.items_sold || 0).toLocaleString();
+    $('bannerTotal').textContent = money(k.total_sales);
+    $('bannerNote').textContent = `Total promotional discounts granted: ${money(k.total_discounts)} · Total taxes collected: ${money(k.total_tax)}`;
+
+    // Payment Tender Breakdown
+    const totalSalesNum = Number(k.total_sales || 0);
+    $('paymentBody').innerHTML = (data.payment_breakdown && data.payment_breakdown.length) ? data.payment_breakdown.map(p => {
+      const pAmt = Number(p.amount || 0);
+      const pct = totalSalesNum > 0 ? (pAmt / totalSalesNum * 100).toFixed(1) + '%' : '0.0%';
+      return `<tr>
+        <td><strong>${escapeHtml(p.payment_method)}</strong></td>
+        <td class="right">${Number(p.count || 0).toLocaleString()}</td>
+        <td class="right"><strong>${money(pAmt)}</strong></td>
+        <td class="right">${pct}</td>
+      </tr>`;
+    }).join('') + `<tr class="total-row">
+      <td>Total Paid Inflows</td>
+      <td class="right">${Number(k.total_orders || 0).toLocaleString()}</td>
+      <td class="right">${money(k.total_sales)}</td>
+      <td class="right">100.0%</td>
+    </tr>` : '<tr><td colspan="4" class="empty">No paid transactions recorded in this period.</td></tr>';
+
+    // Top Selling Products
+    $('topProductsBody').innerHTML = (data.top_products && data.top_products.length) ? data.top_products.map(p => {
+      const qty = Number(p.qty_sold || 0);
+      const rev = Number(p.total_revenue || 0);
+      const avg = qty > 0 ? rev / qty : 0;
+      return `<tr>
+        <td><strong>${escapeHtml(p.product_name)}</strong></td>
+        <td class="right"><strong>${qty.toLocaleString()}</strong></td>
+        <td class="right">${money(rev)}</td>
+        <td class="right">${money(avg)}</td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="4" class="empty">No product sales recorded in this period.</td></tr>';
+
+    // Orders Ledger
+    $('ordersBody').innerHTML = (data.orders && data.orders.length) ? data.orders.map(o => {
+      const status = o.status || 'Paid';
+      const badgeCls = status === 'Paid' ? 'paid' : (status === 'Refunded' ? 'refunded' : 'pending');
+      return `<tr>
+        <td><code>${escapeHtml(o.order_ref || '#' + o.id)}</code></td>
+        <td>${escapeHtml(o.formatted_date || '—')}</td>
+        <td>${escapeHtml(o.customer_name || 'Walk-in Customer')}</td>
+        <td class="right">${Number(o.item_count || 1).toLocaleString()}</td>
+        <td class="right">${money(o.subtotal)}</td>
+        <td class="right" style="color:${Number(o.discount_amount) > 0 ? 'var(--burgundy)' : 'inherit'}">${money(o.discount_amount)}</td>
+        <td class="right">${money(o.tax_amount)}</td>
+        <td class="right"><strong>${money(o.total_amount)}</strong></td>
+        <td>${escapeHtml(o.payment_method || 'Cash')}</td>
+        <td><span class="badge ${badgeCls}">${escapeHtml(status)}</span></td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="10" class="empty">No orders matched the selected filters.</td></tr>';
+  }
+
+  $('filterForm').addEventListener('submit', loadReport);
+  $('refreshBtn').addEventListener('click', loadReport);
+
+  $('csvBtn').addEventListener('click', () => {
+    if (!latestReport) { $('statusMessage').textContent = 'Load report data before exporting.'; return; }
+    const k = latestReport.kpis;
+    const rows = [
+      ['BOOKWISE Sales & POS Performance Report', `${latestReport.start} to ${latestReport.end}`],
+      ['Metric', 'Value'],
+      ['Total Paid Sales Revenue', k.total_sales],
+      ['Total Paid Orders', k.total_orders],
+      ['Average Order Value (AOV)', k.average_order_value],
+      ['Total Units Sold', k.items_sold],
+      ['Total Promotional Discounts', k.total_discounts],
+      ['Total Sales Tax Collected', k.total_tax],
+      [],
+      ['Payment Tender Breakdown'],
+      ['Tender Method', 'Transaction Count', 'Revenue Total (Rs.)'],
+      ...latestReport.payment_breakdown.map(p => [p.payment_method, p.count, p.amount]),
+      [],
+      ['Top Selling Products'],
+      ['Product Name', 'Units Sold', 'Total Gross Revenue (Rs.)'],
+      ...latestReport.top_products.map(p => [p.product_name, p.qty_sold, p.total_revenue]),
+      [],
+      ['Point of Sale Transactions Ledger'],
+      ['Receipt / Order Ref', 'Date & Time', 'Customer Name', 'Item Count', 'Subtotal', 'Discount Amount', 'Tax Amount', 'Total Amount', 'Payment Method', 'Status'],
+      ...latestReport.orders.map(o => [o.order_ref, o.formatted_date, o.customer_name, o.item_count, o.subtotal, o.discount_amount, o.tax_amount, o.total_amount, o.payment_method, o.status])
+    ];
+    const csv = rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const blob = new Blob(['\ufeff' + csv], {type: 'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bookwise-sales-report-${latestReport.start}-to-${latestReport.end}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  initDates();
+  loadReport();
+})();
+</script>
+</body>
+</html>

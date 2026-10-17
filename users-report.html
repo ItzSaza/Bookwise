@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BOOKWISE — User Accounts &amp; Access Control Audit Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#1b2a4a;--burgundy:#7a2e2e;--gold:#c9a227;--ink:#232323;--muted:#6b7280;--cream:#f7f3ea;--line:#e4ddcb;--green:#2f6b4f;--red:#b42318;--amber:#b45309}
+*{box-sizing:border-box}body{margin:0;background:#ececec;color:var(--ink);font-family:Inter,Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.toolbar{max-width:1000px;margin:24px auto 0;display:flex;gap:10px;align-items:center;justify-content:space-between;padding:0 18px}
+.toolbar .actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:0;border-radius:7px;padding:10px 14px;font-weight:700;cursor:pointer;background:var(--navy);color:white}.btn.secondary{background:white;color:var(--navy);border:1px solid #cbd5e1}.btn:disabled{opacity:.55;cursor:wait}
+.filters{max-width:1000px;margin:12px auto;background:white;border:1px solid #ddd;padding:14px 18px;border-radius:9px;display:flex;align-items:end;gap:12px;flex-wrap:wrap}.field{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--muted);font-weight:700}.field select,.field input{font:inherit;color:var(--ink);padding:9px;border:1px solid #cbd5e1;border-radius:6px;min-width:160px}.message{font-size:12px;color:var(--muted);margin-left:auto}
+.page{background:white;width:min(210mm,calc(100% - 32px));min-height:297mm;margin:18px auto 40px;padding:14mm 15mm;box-shadow:0 4px 18px #00000012}
+.header{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;padding-bottom:18px;border-bottom:3px solid var(--burgundy);margin-bottom:18px}.brand-area{display:flex;gap:12px}.brand-mark{width:42px;height:42px;border-radius:8px;background:var(--gold);color:var(--navy);font-family:Fraunces,serif;font-size:24px;font-weight:700;display:grid;place-items:center}.brand-text h1{font:700 25px Fraunces,serif;color:var(--navy);margin:0 0 5px}.brand-text p,.report-meta p{margin:0;font-size:10px;color:var(--muted);line-height:1.5}.report-meta{text-align:right}.report-meta h2{font-size:13px;letter-spacing:1px;color:var(--burgundy);margin:0 0 7px;text-transform:uppercase}
+.sub-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:22px}.label{font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.7px;text-transform:uppercase;margin-bottom:5px}.val{font-size:11px;color:var(--navy);font-weight:700}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px}.kpi-card{border:1px solid var(--line);padding:12px;border-bottom:3px solid var(--navy);min-width:0}.kpi-card.rev{border-bottom-color:var(--gold)}.kpi-card.exp{border-bottom-color:var(--green)}.kpi-card.net{border-bottom-color:var(--burgundy)}.kpi-card.out{border-bottom-color:var(--amber)}.kpi-card .label{font-size:9px}.kpi-card .val{font:600 18px Fraunces,serif;overflow-wrap:anywhere}
+.section-title{font-size:13px;font-weight:700;color:var(--navy);margin:22px 0 9px}table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:20px}th{background:var(--cream);color:var(--muted);text-transform:uppercase;font-size:8px;letter-spacing:.5px;padding:9px 8px;text-align:left}td{padding:8px;border-bottom:1px solid #f0ecdf;overflow-wrap:anywhere}.right{text-align:right}.total-row td{font-weight:700;color:var(--navy);border-top:1px solid var(--line)}.empty{text-align:center;color:var(--muted);padding:18px}
+.summary-banner{background:var(--navy);color:white;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;gap:15px;margin:10px 0 22px}.summary-banner .label{color:#e1e7f2;margin:0}.summary-banner .val{font:600 23px Fraunces,serif;color:white}.footnote{font-size:9px;color:var(--muted);line-height:1.5}.error{color:var(--red)}
+.badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.badge.active{background:#dcfce7;color:#15803d}.badge.inactive{background:#fee2e2;color:#b91c1c}
+.badge.role-admin{background:#ede9fe;color:#6b21a8}.badge.role-staff{background:#e0f2fe;color:#0369a1}.badge.role-cashier{background:#fef3c7;color:#92400e}
+.signatures{margin-top:35px;display:grid;grid-template-columns:1fr 1fr;gap:40px}
+.sig-box{border-top:1px dashed #94a3b8;padding-top:8px;font-size:10px;color:var(--muted)}
+.sig-box strong{display:block;color:var(--navy);font-size:11px;margin-bottom:2px}
+@media(max-width:650px){.header{flex-direction:column}.report-meta{text-align:left}.kpis{grid-template-columns:repeat(2,1fr)}.sub-meta{grid-template-columns:1fr 1fr}.page{padding:22px 16px}.toolbar{align-items:flex-start;flex-direction:column}.message{margin-left:0}}
+@media print{body{background:white}.toolbar,.filters{display:none!important}.page{width:100%;min-height:0;margin:0;padding:0;box-shadow:none}.kpi-card,th,.summary-banner,.badge{-webkit-print-color-adjust:exact;print-color-adjust:exact}@page{size:A4;margin:14mm}thead{display:table-header-group}tr{break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <strong>BOOKWISE / User Management</strong>
+  <div class="actions">
+    <button class="btn secondary" type="button" onclick="location.href='user-management.html'">← Back to Users</button>
+    <button class="btn" type="button" id="refreshBtn">Refresh Data</button>
+    <button class="btn" type="button" onclick="window.print()">Print / Save PDF</button>
+    <button class="btn secondary" type="button" id="csvBtn">Export CSV</button>
+  </div>
+</div>
+
+<form class="filters" id="filterForm">
+  <label class="field">System Role
+    <select id="roleFilter">
+      <option value="all">All Roles</option>
+      <option value="Admin">Administrator</option>
+      <option value="Staff">Store Staff</option>
+      <option value="Cashier">Cashier</option>
+    </select>
+  </label>
+  <label class="field">Account Status
+    <select id="statusFilter">
+      <option value="all">All Statuses</option>
+      <option value="Active">Active Accounts</option>
+      <option value="Inactive">Inactive / Suspended</option>
+    </select>
+  </label>
+  <button class="btn" type="submit">Generate Report</button>
+  <span class="message" id="statusMessage" role="status">Loading database records…</span>
+</form>
+
+<main class="page">
+  <header class="header">
+    <div class="brand-area"><div class="brand-mark">B</div><div class="brand-text"><h1>Bookwise</h1><p>Minre Book Shop · Identity &amp; Access Governance<br>Official user account registry and role-based access audit</p></div></div>
+    <div class="report-meta"><h2>User Accounts &amp; Access Audit Report</h2><p>Snapshot Date: <strong id="periodText">Current</strong></p><p>Generated: <span id="generatedAt">—</span></p></div>
+  </header>
+  <div class="sub-meta">
+    <div><div class="label">Report Scope</div><div class="val">Security Audit &amp; RBAC Directory</div></div>
+    <div><div class="label">Prepared By</div><div class="val" id="preparedBy">System Admin</div></div>
+    <div><div class="label">Data Source</div><div class="val">Live MySQL User Directory</div></div>
+  </div>
+
+  <section class="kpis">
+    <div class="kpi-card rev"><div class="label">Total System Users</div><div class="val" id="totalUsersVal">—</div></div>
+    <div class="kpi-card exp"><div class="label">Active User Accounts</div><div class="val" id="activeUsersVal">—</div></div>
+    <div class="kpi-card net"><div class="label">Administrators</div><div class="val" id="adminUsersVal">—</div></div>
+    <div class="kpi-card out"><div class="label">Inactive Accounts</div><div class="val" id="inactiveUsersVal">—</div></div>
+  </section>
+
+  <h3 class="section-title">Role-Based Access Control (RBAC) Distribution</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Role Name</th>
+        <th class="right">Total Accounts</th>
+        <th class="right">Active Accounts</th>
+        <th class="right">% of User Base</th>
+        <th>Clearance &amp; Module Access</th>
+      </tr>
+    </thead>
+    <tbody id="roleBody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+  </table>
+
+  <div class="summary-banner">
+    <div>
+      <div class="label">Account Compliance &amp; Active Security Ratio</div>
+      <div class="footnote" style="color:#d5dced" id="bannerNote">Percentage of provisioned user credentials in Active operational status</div>
+    </div>
+    <div class="val" id="complianceVal">—%</div>
+  </div>
+
+  <h3 class="section-title">User Account Directory &amp; Audit Ledger</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Full Name</th>
+        <th>Username</th>
+        <th>Email Address</th>
+        <th>Assigned Role</th>
+        <th>Account Status</th>
+        <th>Created Date</th>
+        <th>Last Updated</th>
+      </tr>
+    </thead>
+    <tbody id="usersBody"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+  </table>
+
+  <div class="signatures">
+    <div class="sig-box">
+      <strong id="sigPrepared">Audited By: System Administrator / IT Security Lead</strong>
+      <span>Signature &amp; Verification Stamp</span>
+    </div>
+    <div class="sig-box">
+      <strong>Approved By: Compliance Officer / Management</strong>
+      <span>Signature &amp; Date</span>
+    </div>
+  </div>
+
+  <p class="footnote" style="margin-top:24px;">CONFIDENTIAL DOCUMENT. This audit report lists authorized system user accounts registered within BOOKWISE. Inactive or suspended accounts are maintained for historical audit trail compliance. Access privileges adhere strictly to the role-based access control (RBAC) matrix.</p>
+</main>
+
+<script src="notifications.js"></script>
+<script src="auth.js"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let latestReport = null;
+
+  async function loadReport(event) {
+    if (event) event.preventDefault();
+    const role = $('roleFilter').value;
+    const status = $('statusFilter').value;
+
+    $('refreshBtn').disabled = true;
+    $('statusMessage').textContent = 'Loading user records from database…';
+    $('statusMessage').className = 'message';
+
+    try {
+      let url = `api/index.php?resource=users-report&role=${encodeURIComponent(role)}&status=${encodeURIComponent(status)}`;
+      const res = await fetch(url, {credentials:'same-origin', cache:'no-store'});
+      const result = await res.json();
+      if (!res.ok || !result.success) throw new Error(result.message || 'Could not load users report.');
+      latestReport = result.data;
+      render(latestReport);
+      $('statusMessage').textContent = `Updated from database · ${latestReport.total_users_count} accounts listed`;
+    } catch (err) {
+      $('statusMessage').textContent = err.message || 'Failed to load user report.';
+      $('statusMessage').className = 'message error';
+    } finally {
+      $('refreshBtn').disabled = false;
+    }
+  }
+
+  function render(data) {
+    $('periodText').textContent = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    $('generatedAt').textContent = new Date().toLocaleString();
+
+    const u = window.currentUser || JSON.parse(sessionStorage.getItem('bookwise_user') || localStorage.getItem('bookwise_user') || '{}');
+    if (u && (u.full_name || u.username)) {
+      const name = u.full_name || u.username;
+      $('preparedBy').textContent = `${name} (${u.role || 'Admin'})`;
+      $('sigPrepared').textContent = `Audited By: ${name} (${u.role || 'System Admin'})`;
+    }
+
+    const k = data.kpis;
+    const total = Number(k.total_users || 0);
+    const active = Number(k.active_users || 0);
+    $('totalUsersVal').textContent = total.toLocaleString();
+    $('activeUsersVal').textContent = active.toLocaleString();
+    $('adminUsersVal').textContent = Number(k.admin_count || 0).toLocaleString();
+    $('inactiveUsersVal').textContent = Number(k.inactive_users || 0).toLocaleString();
+
+    const compliance = total > 0 ? ((active / total) * 100).toFixed(1) + '%' : '0.0%';
+    $('complianceVal').textContent = compliance;
+    $('bannerNote').textContent = `${active} active accounts across roles: ${k.admin_count || 0} Admins, ${k.staff_count || 0} Staff, ${k.cashier_count || 0} Cashiers (${k.inactive_users || 0} inactive accounts)`;
+
+    // Role breakdown
+    const roleDesc = {
+      'Admin': 'Full system privileges: Users, Inventory, Suppliers, POS, Finance, Staff',
+      'Staff': 'Operational access: Inventory, Suppliers, POS, Financials (No user management/staff)',
+      'Cashier': 'POS register access: Sales creation, receipt printing & sales reporting only'
+    };
+
+    $('roleBody').innerHTML = (data.role_breakdown && data.role_breakdown.length) ? data.role_breakdown.map(r => {
+      const rTotal = Number(r.count || 0);
+      const pct = total > 0 ? (rTotal / total * 100).toFixed(1) + '%' : '0.0%';
+      return `<tr>
+        <td><strong>${escapeHtml(r.role)}</strong></td>
+        <td class="right">${rTotal.toLocaleString()}</td>
+        <td class="right" style="color:var(--green)"><strong>${Number(r.active_count || 0).toLocaleString()}</strong></td>
+        <td class="right">${pct}</td>
+        <td>${escapeHtml(roleDesc[r.role] || 'Standard system user')}</td>
+      </tr>`;
+    }).join('') + `<tr class="total-row">
+      <td>Total Accounts</td>
+      <td class="right">${total.toLocaleString()}</td>
+      <td class="right">${active.toLocaleString()}</td>
+      <td class="right">100.0%</td>
+      <td>All Role Tiers</td>
+    </tr>` : '<tr><td colspan="5" class="empty">No role data available.</td></tr>';
+
+    // Users Directory
+    $('usersBody').innerHTML = (data.users && data.users.length) ? data.users.map(u => {
+      const status = u.status || 'Active';
+      const badgeCls = status === 'Active' ? 'active' : 'inactive';
+      const roleCls = u.role === 'Admin' ? 'role-admin' : (u.role === 'Staff' ? 'role-staff' : 'role-cashier');
+      return `<tr>
+        <td><code>#${u.id}</code></td>
+        <td><strong>${escapeHtml(u.full_name || '—')}</strong></td>
+        <td>${escapeHtml(u.username)}</td>
+        <td>${escapeHtml(u.email || '—')}</td>
+        <td><span class="badge ${roleCls}">${escapeHtml(u.role)}</span></td>
+        <td><span class="badge ${badgeCls}">${escapeHtml(status)}</span></td>
+        <td>${escapeHtml(u.created_at || '—')}</td>
+        <td>${escapeHtml(u.updated_at || '—')}</td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="8" class="empty">No user accounts matched the selected filters.</td></tr>';
+  }
+
+  $('filterForm').addEventListener('submit', loadReport);
+  $('refreshBtn').addEventListener('click', loadReport);
+
+  $('csvBtn').addEventListener('click', () => {
+    if (!latestReport) { $('statusMessage').textContent = 'Load report data before exporting.'; return; }
+    const k = latestReport.kpis;
+    const rows = [
+      ['BOOKWISE User Accounts & Access Control Audit Report', new Date().toLocaleDateString()],
+      ['Metric', 'Value'],
+      ['Total System Accounts', k.total_users],
+      ['Active Accounts', k.active_users],
+      ['Inactive Accounts', k.inactive_users],
+      ['Administrator Accounts', k.admin_count],
+      ['Staff Accounts', k.staff_count],
+      ['Cashier Accounts', k.cashier_count],
+      [],
+      ['Role-Based Access Control Distribution'],
+      ['Role Name', 'Total Accounts', 'Active Accounts'],
+      ...latestReport.role_breakdown.map(r => [r.role, r.count, r.active_count]),
+      [],
+      ['User Account Directory'],
+      ['ID', 'Full Name', 'Username', 'Email', 'Role', 'Status', 'Created At', 'Updated At'],
+      ...latestReport.users.map(u => [u.id, u.full_name, u.username, u.email, u.role, u.status, u.created_at, u.updated_at])
+    ];
+    const csv = rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const blob = new Blob(['\ufeff' + csv], {type: 'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bookwise-users-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  loadReport();
+})();
+</script>
+</body>
+</html>
