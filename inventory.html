@@ -473,7 +473,7 @@
         if (!confirmed) return;
         catMessage.textContent = '';
         try {
-          const response = await fetch(`api/index.php?resource=categories&id=${id}`, { method: 'DELETE' });
+          const response = await fetch(`api/index.php?resource=categories&id=${id}&name=${encodeURIComponent(name || '')}`, { method: 'DELETE' });
           const result = await response.json();
           if (!response.ok || !result.success) {
             catMessage.textContent = result.message || 'Could not delete category.';
@@ -506,7 +506,7 @@
       );
       if (!confirmed) return;
       try {
-        const response = await fetch(`api/index.php?resource=products&id=${prodId}`, { method: 'DELETE' });
+        const response = await fetch(`api/index.php?resource=products&id=${prodId}&name=${encodeURIComponent(pName || '')}`, { method: 'DELETE' });
         const result = await response.json();
         if (!response.ok || !result.success) {
           if (typeof window.showAppNotification === 'function') {

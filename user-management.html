@@ -309,7 +309,7 @@
         if (!confirmed) return;
 
         try {
-          const response = await fetch(`api/index.php?resource=users&id=${userId}`, { method: 'DELETE' });
+          const response = await fetch(`api/index.php?resource=users&id=${userId}&name=${encodeURIComponent(userName || '')}`, { method: 'DELETE' });
           const result = await response.json();
           if (!response.ok || !result.success) {
             if (typeof window.showAppNotification === 'function') {

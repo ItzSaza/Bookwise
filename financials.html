@@ -305,7 +305,7 @@
 
       deleteButton.disabled = true;
       try {
-        await requestJson(`api/index.php?resource=expenses&id=${encodeURIComponent(expenseId)}`, {
+        await requestJson(`api/index.php?resource=expenses&id=${encodeURIComponent(expenseId)}&name=${encodeURIComponent(ref || '')}`, {
           method: 'DELETE'
         });
         await Promise.all([loadExpenses(), loadFinancials()]);

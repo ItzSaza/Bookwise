@@ -302,7 +302,7 @@ try {
         try {
             $statement = $database->prepare('INSERT INTO categories (name) VALUES (:name)');
             $statement->execute(['name' => $name]);
-            respond(['success' => true, 'message' => 'Category created successfully.', 'id' => (int) $database->lastInsertId()], 201);
+            respond(['success' => true, 'message' => 'Category created successfully.', 'id' => (int) $database->lastInsertId(), 'item_name' => $name], 201);
         } catch (PDOException $e) {
             respond(['success' => false, 'message' => 'A category with this name already exists.'], 422);
         }
@@ -316,7 +316,7 @@ try {
         try {
             $statement = $database->prepare('UPDATE categories SET name = :name WHERE id = :id');
             $statement->execute(['name' => $name, 'id' => $id]);
-            respond(['success' => true, 'message' => 'Category updated successfully.']);
+            respond(['success' => true, 'message' => 'Category updated successfully.', 'item_name' => $name]);
         } catch (PDOException $e) {
             respond(['success' => false, 'message' => 'Category name already exists or update failed.'], 422);
         }
@@ -324,12 +324,17 @@ try {
 
     if ($resource === 'categories' && $id && $method === 'DELETE') {
         try {
+            $catStmt = $database->prepare('SELECT name FROM categories WHERE id = :id');
+            $catStmt->execute(['id' => $id]);
+            $catRow = $catStmt->fetch();
+            $itemName = $catRow ? $catRow['name'] : trim((string) ($_GET['name'] ?? ''));
+
             $statement = $database->prepare('DELETE FROM categories WHERE id = :id');
             $statement->execute(['id' => $id]);
             if ($statement->rowCount() === 0) {
                 respond(['success' => false, 'message' => 'Category not found.'], 404);
             }
-            respond(['success' => true, 'message' => 'Category deleted successfully.']);
+            respond(['success' => true, 'message' => 'Category deleted successfully.', 'item_name' => $itemName ?: 'Category']);
         } catch (PDOException $e) {
             respond(['success' => false, 'message' => 'Cannot delete this category because products are assigned to it.'], 422);
         }
@@ -369,7 +374,7 @@ try {
              VALUES (:name, :contact_person, :phone, :email, :address, :category, :payment_terms, :status, :notes)'
         );
         $statement->execute($supplier);
-        respond(['success' => true, 'message' => 'Supplier added successfully.', 'id' => (int) $database->lastInsertId()], 201);
+        respond(['success' => true, 'message' => 'Supplier added successfully.', 'id' => (int) $database->lastInsertId(), 'item_name' => $supplier['name']], 201);
     }
 
     // Supplier update endpoint: updates an existing supplier record.
@@ -384,22 +389,27 @@ try {
         );
         $supplier['id'] = $id;
         $statement->execute($supplier);
-        respond(['success' => true, 'message' => 'Supplier updated successfully.']);
+        respond(['success' => true, 'message' => 'Supplier updated successfully.', 'item_name' => $supplier['name']]);
     }
 
     // Supplier deletion endpoint: removes a supplier, or marks Inactive if referenced in orders/products.
     if ($resource === 'suppliers' && $id && $method === 'DELETE') {
         try {
+            $suppStmt = $database->prepare('SELECT name FROM suppliers WHERE id = :id');
+            $suppStmt->execute(['id' => $id]);
+            $suppRow = $suppStmt->fetch();
+            $itemName = $suppRow ? $suppRow['name'] : trim((string) ($_GET['name'] ?? ''));
+
             $statement = $database->prepare('DELETE FROM suppliers WHERE id = :id');
             $statement->execute(['id' => $id]);
             if ($statement->rowCount() === 0) {
                 respond(['success' => false, 'message' => 'Supplier was not found.'], 404);
             }
-            respond(['success' => true, 'message' => 'Supplier deleted successfully.']);
+            respond(['success' => true, 'message' => 'Supplier deleted successfully.', 'item_name' => $itemName ?: 'Supplier']);
         } catch (PDOException $e) {
             $statement = $database->prepare("UPDATE suppliers SET status = 'Inactive' WHERE id = :id");
             $statement->execute(['id' => $id]);
-            respond(['success' => true, 'message' => 'Supplier is referenced by orders/products; marked as Inactive instead.']);
+            respond(['success' => true, 'message' => 'Supplier is referenced by orders/products; marked as Inactive instead.', 'item_name' => $itemName ?: 'Supplier']);
         }
     }
 
@@ -504,7 +514,7 @@ try {
                 ]);
             }
             $database->commit();
-            respond(['success' => true, 'message' => 'Purchase order updated successfully.']);
+            respond(['success' => true, 'message' => 'Purchase order updated successfully.', 'item_name' => $body['po_ref'] ?? null]);
         } catch (PDOException $e) {
             if ($database->inTransaction()) $database->rollBack();
             respond(['success' => false, 'message' => 'Could not update purchase order: ' . $e->getMessage()], 500);
@@ -513,17 +523,22 @@ try {
 
     if ($resource === 'purchase_orders' && $id && $method === 'DELETE') {
         try {
+            $poStmt = $database->prepare('SELECT po_ref FROM purchase_orders WHERE id = :id');
+            $poStmt->execute(['id' => $id]);
+            $poRow = $poStmt->fetch();
+            $itemName = $poRow ? $poRow['po_ref'] : trim((string) ($_GET['name'] ?? ''));
+
             $permanent = ($_GET['permanent'] ?? '') === 'true';
             if ($permanent) {
                 $database->beginTransaction();
                 $database->prepare('DELETE FROM purchase_order_items WHERE purchase_order_id = :id')->execute(['id' => $id]);
                 $database->prepare('DELETE FROM purchase_orders WHERE id = :id')->execute(['id' => $id]);
                 $database->commit();
-                respond(['success' => true, 'message' => 'Purchase order deleted successfully.']);
+                respond(['success' => true, 'message' => 'Purchase order deleted successfully.', 'item_name' => $itemName ?: 'Purchase Order']);
             } else {
                 $statement = $database->prepare("UPDATE purchase_orders SET status = 'Cancelled' WHERE id = :id");
                 $statement->execute(['id' => $id]);
-                respond(['success' => true, 'message' => 'Purchase order cancelled.']);
+                respond(['success' => true, 'message' => 'Purchase order cancelled.', 'item_name' => $itemName ?: 'Purchase Order']);
             }
         } catch (PDOException $e) {
             if ($database->inTransaction()) $database->rollBack();
@@ -574,7 +589,7 @@ try {
                     'line_total' => $qty * $cost,
                 ]);
             }
-            respond(['success' => true, 'message' => 'Purchase order created successfully.', 'po_ref' => $poRef], 201);
+            respond(['success' => true, 'message' => 'Purchase order created successfully.', 'po_ref' => $poRef, 'item_name' => $poRef], 201);
         } catch (PDOException $e) {
             respond(['success' => false, 'message' => 'Could not save purchase order: ' . $e->getMessage()], 500);
         }
@@ -647,7 +662,7 @@ try {
             ]);
         }
         $database->commit();
-        respond(['success' => true, 'message' => 'Sale completed successfully.', 'order_ref' => $orderRef, 'id' => $saleId], 201);
+        respond(['success' => true, 'message' => 'Sale completed successfully.', 'order_ref' => $orderRef, 'item_name' => $orderRef, 'id' => $saleId], 201);
     }
 
     // Sale update endpoint: updates order customer, payment method, or status.
@@ -679,7 +694,13 @@ try {
             $sql = 'UPDATE sales SET ' . implode(', ', $updates) . ' WHERE id = :id';
             $statement = $database->prepare($sql);
             $statement->execute($params);
-            respond(['success' => true, 'message' => 'Order updated successfully.']);
+
+            $saleStmt = $database->prepare('SELECT order_ref FROM sales WHERE id = :id');
+            $saleStmt->execute(['id' => $id]);
+            $saleRow = $saleStmt->fetch();
+            $orderRef = $saleRow ? $saleRow['order_ref'] : null;
+
+            respond(['success' => true, 'message' => 'Order updated successfully.', 'item_name' => $orderRef]);
         } catch (PDOException $e) {
             respond(['success' => false, 'message' => 'Failed to update order: ' . $e->getMessage()], 500);
         }
@@ -688,6 +709,11 @@ try {
     // Sale deletion endpoint: permanently deletes a sale and its associated line items.
     if ($resource === 'sales' && $id && $method === 'DELETE') {
         try {
+            $saleStmt = $database->prepare('SELECT order_ref FROM sales WHERE id = :id');
+            $saleStmt->execute(['id' => $id]);
+            $saleRow = $saleStmt->fetch();
+            $itemName = $saleRow ? $saleRow['order_ref'] : trim((string) ($_GET['name'] ?? ''));
+
             $database->beginTransaction();
             $database->prepare('DELETE FROM sale_items WHERE sale_id = :id')->execute(['id' => $id]);
             $statement = $database->prepare('DELETE FROM sales WHERE id = :id');
@@ -697,7 +723,7 @@ try {
                 respond(['success' => false, 'message' => 'Sale not found.'], 404);
             }
             $database->commit();
-            respond(['success' => true, 'message' => 'Order deleted successfully.']);
+            respond(['success' => true, 'message' => 'Order deleted successfully.', 'item_name' => $itemName ?: 'Order']);
         } catch (PDOException $e) {
             if ($database->inTransaction()) $database->rollBack();
             respond(['success' => false, 'message' => 'Failed to delete order: ' . $e->getMessage()], 500);
@@ -755,7 +781,7 @@ try {
             'role'          => $role,
             'status'        => $status,
         ]);
-        respond(['success' => true, 'message' => 'User added successfully.', 'id' => (int) $database->lastInsertId()], 201);
+        respond(['success' => true, 'message' => 'User added successfully.', 'id' => (int) $database->lastInsertId(), 'item_name' => $name], 201);
     }
 
     // User update endpoint: modifies an existing user record.
@@ -779,7 +805,7 @@ try {
             'role'      => $role,
             'status'    => $status,
         ]);
-        respond(['success' => true, 'message' => 'User updated successfully.']);
+        respond(['success' => true, 'message' => 'User updated successfully.', 'item_name' => $name]);
     }
 
     // User status update endpoint: toggles the active/inactive status for an individual user.
@@ -790,17 +816,26 @@ try {
         if ($statement->rowCount() === 0) {
             respond(['success' => false, 'message' => 'User was not found or no changes were made.'], 404);
         }
-        respond(['success' => true, 'message' => 'User status updated successfully.']);
+        $uStmt = $database->prepare('SELECT full_name, username FROM users WHERE id = :id');
+        $uStmt->execute(['id' => $id]);
+        $uRow = $uStmt->fetch();
+        $uName = $uRow ? ($uRow['full_name'] ?: $uRow['username']) : null;
+        respond(['success' => true, 'message' => 'User status updated successfully.', 'item_name' => $uName]);
     }
 
     // User deletion endpoint: permanently deletes a user.
     if ($resource === 'users' && $id && $method === 'DELETE') {
+        $uStmt = $database->prepare('SELECT full_name, username FROM users WHERE id = :id');
+        $uStmt->execute(['id' => $id]);
+        $uRow = $uStmt->fetch();
+        $itemName = $uRow ? ($uRow['full_name'] ?: $uRow['username']) : trim((string) ($_GET['name'] ?? ''));
+
         $statement = $database->prepare('DELETE FROM users WHERE id = :id');
         $statement->execute(['id' => $id]);
         if ($statement->rowCount() === 0) {
             respond(['success' => false, 'message' => 'User was not found.'], 404);
         }
-        respond(['success' => true, 'message' => 'User deleted successfully.']);
+        respond(['success' => true, 'message' => 'User deleted successfully.', 'item_name' => $itemName ?: 'User']);
     }
 
     // Employee lookup endpoint: returns all employee records sorted by name or single employee if id given.
@@ -841,7 +876,7 @@ try {
              VALUES (:name, :role, :phone, :department, :status)'
         );
         $statement->execute($employee);
-        respond(['success' => true, 'message' => 'Employee added successfully.', 'id' => (int) $database->lastInsertId()], 201);
+        respond(['success' => true, 'message' => 'Employee added successfully.', 'id' => (int) $database->lastInsertId(), 'item_name' => $employee['name']], 201);
     }
 
     // Employee update endpoint: edits an existing employee record using the provided id.
@@ -865,17 +900,22 @@ try {
              WHERE id = :id'
         );
         $statement->execute($employee);
-        respond(['success' => true, 'message' => 'Employee updated successfully.']);
+        respond(['success' => true, 'message' => 'Employee updated successfully.', 'item_name' => $employee['name']]);
     }
 
     // Employee deletion endpoint: removes an employee record.
     if ($resource === 'employees' && $id && $method === 'DELETE') {
+        $empStmt = $database->prepare('SELECT name FROM employees WHERE id = :id');
+        $empStmt->execute(['id' => $id]);
+        $empRow = $empStmt->fetch();
+        $itemName = $empRow ? $empRow['name'] : trim((string) ($_GET['name'] ?? ''));
+
         $statement = $database->prepare('DELETE FROM employees WHERE id = :id');
         $statement->execute(['id' => $id]);
         if ($statement->rowCount() === 0) {
             respond(['success' => false, 'message' => 'Employee was not found.'], 404);
         }
-        respond(['success' => true, 'message' => 'Employee deleted successfully.']);
+        respond(['success' => true, 'message' => 'Employee deleted successfully.', 'item_name' => $itemName ?: 'Employee']);
     }
 
     // Financial report endpoint: returns live database totals and ledger for a selected date range.
@@ -1021,7 +1061,7 @@ try {
              VALUES (:expense_ref, :expense_type, :description, :amount, :expense_date)'
         );
         $statement->execute(['expense_ref' => $expenseRef] + $expense);
-        respond(['success' => true, 'message' => 'Expense added successfully.', 'expense_ref' => $expenseRef], 201);
+        respond(['success' => true, 'message' => 'Expense added successfully.', 'expense_ref' => $expenseRef, 'item_name' => $expenseRef], 201);
     }
 
     // Expense update endpoint: changes editable fields while preserving the original reference.
@@ -1041,17 +1081,22 @@ try {
                 respond(['success' => false, 'message' => 'Expense was not found.'], 404);
             }
         }
-        respond(['success' => true, 'message' => 'Expense updated successfully.']);
+        respond(['success' => true, 'message' => 'Expense updated successfully.', 'item_name' => $expense['description']]);
     }
 
     // Expense deletion endpoint: removes the selected expense record.
     if ($resource === 'expenses' && $id && $method === 'DELETE') {
+        $expStmt = $database->prepare('SELECT expense_ref, description FROM expenses WHERE id = :id');
+        $expStmt->execute(['id' => $id]);
+        $expRow = $expStmt->fetch();
+        $itemName = $expRow ? ($expRow['expense_ref'] ?: $expRow['description']) : trim((string) ($_GET['name'] ?? ''));
+
         $statement = $database->prepare('DELETE FROM expenses WHERE id = :id');
         $statement->execute(['id' => $id]);
         if ($statement->rowCount() === 0) {
             respond(['success' => false, 'message' => 'Expense was not found.'], 404);
         }
-        respond(['success' => true, 'message' => 'Expense deleted successfully.']);
+        respond(['success' => true, 'message' => 'Expense deleted successfully.', 'item_name' => $itemName ?: 'Expense']);
     }
 
     // Product listing endpoint: returns active products with search/category filters, or single product by id.
@@ -1109,7 +1154,7 @@ try {
              VALUES (:sku, :name, :isbn_barcode, :category_id, :unit_price, :stock_quantity, :reorder_level, :primary_supplier_id, :status)'
         );
         $statement->execute(['sku' => $sku] + $product);
-        respond(['success' => true, 'message' => 'Product added successfully.', 'id' => (int) $database->lastInsertId()], 201);
+        respond(['success' => true, 'message' => 'Product added successfully.', 'id' => (int) $database->lastInsertId(), 'item_name' => $product['name']], 201);
     }
 
     // Product update endpoint: updates the selected product with the provided validated values.
@@ -1129,22 +1174,27 @@ try {
                 respond(['success' => false, 'message' => 'Product was not found.'], 404);
             }
         }
-        respond(['success' => true, 'message' => 'Product updated successfully.']);
+        respond(['success' => true, 'message' => 'Product updated successfully.', 'item_name' => $product['name']]);
     }
 
     // Product deletion endpoint: removes product, or marks Inactive if referenced in orders.
     if ($resource === 'products' && $id && $method === 'DELETE') {
         try {
+            $prodStmt = $database->prepare('SELECT name FROM products WHERE id = :id');
+            $prodStmt->execute(['id' => $id]);
+            $prodRow = $prodStmt->fetch();
+            $itemName = $prodRow ? $prodRow['name'] : trim((string) ($_GET['name'] ?? ''));
+
             $statement = $database->prepare('DELETE FROM products WHERE id = :id');
             $statement->execute(['id' => $id]);
             if ($statement->rowCount() === 0) {
                 respond(['success' => false, 'message' => 'Product was not found.'], 404);
             }
-            respond(['success' => true, 'message' => 'Product deleted successfully.']);
+            respond(['success' => true, 'message' => 'Product deleted successfully.', 'item_name' => $itemName ?: 'Product']);
         } catch (PDOException $e) {
             $statement = $database->prepare("UPDATE products SET status = 'Inactive' WHERE id = :id");
             $statement->execute(['id' => $id]);
-            respond(['success' => true, 'message' => 'Product is referenced by sales records; marked as Inactive instead.']);
+            respond(['success' => true, 'message' => 'Product is referenced by sales records; marked as Inactive instead.', 'item_name' => $itemName ?: 'Product']);
         }
     }
 

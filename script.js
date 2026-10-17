@@ -834,7 +834,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (order && order.id) {
       try {
-        const response = await fetch(`api/index.php?resource=sales&id=${order.id}`, { method: "DELETE" });
+        const response = await fetch(`api/index.php?resource=sales&id=${order.id}&name=${encodeURIComponent(ref || '')}`, { method: "DELETE" });
         const result = await response.json();
         if (!response.ok || !result.success) {
           toast(result.message || "Failed to delete order.");

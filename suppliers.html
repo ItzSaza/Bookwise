@@ -233,7 +233,7 @@
           : true;
         if (!confirmed) return;
         try {
-          const response = await fetch(`api/index.php?resource=suppliers&id=${supplierId}`, { method: 'DELETE' });
+          const response = await fetch(`api/index.php?resource=suppliers&id=${supplierId}&name=${encodeURIComponent(sName || '')}`, { method: 'DELETE' });
           const result = await response.json();
           if (!response.ok || !result.success) {
             if (typeof window.showAppNotification === 'function') {
@@ -273,7 +273,7 @@
           : true;
         if (!confirmed) return;
         try {
-          const response = await fetch(`api/index.php?resource=purchase_orders&id=${poId}&permanent=true`, { method: 'DELETE' });
+          const response = await fetch(`api/index.php?resource=purchase_orders&id=${poId}&permanent=true&name=${encodeURIComponent(ref || '')}`, { method: 'DELETE' });
           const result = await response.json();
           if (!response.ok || !result.success) {
             if (typeof window.showAppNotification === 'function') {

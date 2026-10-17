@@ -695,7 +695,7 @@
       : true;
     if (!confirmed) return;
     try {
-      var response = await fetch("api/index.php?resource=employees&id=" + id, { method: "DELETE" });
+      var response = await fetch("api/index.php?resource=employees&id=" + id + "&name=" + encodeURIComponent(name || ""), { method: "DELETE" });
       var result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.message || "Could not delete employee.");
       shifts = shifts.filter(function(s){ return s.employeeId !== id; });

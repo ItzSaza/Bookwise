@@ -7,6 +7,22 @@
   try { items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch (_) { items = []; }
   if (!Array.isArray(items)) items = [];
 
+  // Upgrade legacy notifications to ensure actor attribution is present
+  items = items.map(it => {
+    if (!it || typeof it !== 'object') return it;
+    let msg = String(it.message || '').trim();
+    const actorName = (it.actor || '').replace(/\s*\([^)]*\)$/, '').trim() || 'User';
+    if (msg && !/\bby\s+/i.test(msg)) {
+      if (/successfully\.?$/i.test(msg)) {
+        const actionPart = msg.replace(/\s*successfully\.?$/i, '').trim();
+        it.message = `The ${actionPart.toLowerCase()} was completed by ${actorName}.`;
+      } else {
+        it.message = `${msg.replace(/\.+$/, '')} by ${actorName}.`;
+      }
+    }
+    return it;
+  });
+
   let panel, badge, list, toastHost;
 
   function persist() {
@@ -26,6 +42,12 @@
       if (raw) return JSON.parse(raw);
     } catch (_) {}
     return null;
+  }
+
+  function getCurrentUserName() {
+    const user = getCurrentUser();
+    if (!user) return 'User';
+    return user.full_name || user.username || 'User';
   }
 
   function getCurrentActor() {
@@ -75,7 +97,7 @@
             <strong>${esc(item.title)}</strong>
             ${item.scope === 'admin' ? '<span class="bw-scope-badge admin">Admin Only</span>' : ''}
           </div>
-          <p>${esc(item.message)}</p>
+          <p class="bw-notification-msg">${esc(item.message)}</p>
           <div class="bw-notification-meta">
             <span class="bw-notification-actor">By ${esc(item.actor || 'System')}</span>
             <time>${esc(item.time)}</time>
@@ -93,7 +115,7 @@
       <span class="bw-toast-mark">${item.type === 'error' ? '!' : '✓'}</span>
       <div class="bw-toast-copy">
         <strong>${esc(item.title)}</strong>
-        <p>${esc(item.message)}</p>
+        <p class="bw-toast-msg">${esc(item.message)}</p>
         <span class="bw-toast-actor">By ${esc(item.actor || 'System')}</span>
       </div>
       <button type="button" aria-label="Dismiss">×</button>`;
@@ -102,15 +124,37 @@
     window.setTimeout(() => toast.remove(), 5500);
   }
 
+  let lastNotificationTime = 0;
+  let lastNotificationSig = '';
+
   function notify(type, title, message, scope, actor) {
     const resolvedActor = actor || getCurrentActor();
+    const resolvedUserName = getCurrentUserName();
     const resolvedScope = scope || 'all';
+
+    let finalMessage = String(message || '').trim();
+    if (!finalMessage) {
+      finalMessage = type === 'error'
+        ? `The operation could not be completed by ${resolvedUserName}.`
+        : `The operation was completed successfully by ${resolvedUserName}.`;
+    } else if (!/\bby\s+[A-Za-z0-9]/i.test(finalMessage)) {
+      finalMessage = `${finalMessage.replace(/\.+$/, '')} by ${resolvedUserName}.`;
+    }
+
+    // Deduplication check: ignore duplicate within 1200ms
+    const sig = `${type}|${title}|${finalMessage}|${resolvedScope}`;
+    const now = Date.now();
+    if (sig === lastNotificationSig && (now - lastNotificationTime) < 1200) {
+      return;
+    }
+    lastNotificationTime = now;
+    lastNotificationSig = sig;
 
     const item = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       type,
       title,
-      message: message || (type === 'error' ? 'The operation could not be completed.' : 'The operation completed successfully.'),
+      message: finalMessage,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' · ' + new Date().toLocaleDateString(),
       read: false,
       scope: resolvedScope,
@@ -197,25 +241,111 @@
   };
   window.confirmModal = window.bookwiseConfirm;
 
-  function operationName(method, url) {
-    const m = method.toUpperCase();
-    const path = (url.split('?')[0].split('/').pop() || '').replace('.php', '');
-    const params = new URLSearchParams(url.split('?')[1] || '');
-    const resource = params.get('resource') || path || 'record';
-    const names = {
-      products: 'product',
-      suppliers: 'supplier',
-      users: 'user',
-      sales: 'sale',
-      expenses: 'expense',
-      employees: 'employee',
-      services: 'service',
-      purchase_orders: 'purchase order',
-      categories: 'category'
-    };
-    const entity = names[resource] || resource.replace(/[_-]/g, ' ').replace(/s$/, '');
-    const action = m === 'POST' ? 'created' : (m === 'DELETE' ? 'deleted' : (m === 'PATCH' || m === 'PUT' ? 'updated' : 'saved'));
-    return `${entity.charAt(0).toUpperCase()}${entity.slice(1)} ${action}`;
+  const RESOURCE_ENTITY_MAP = {
+    products: 'product',
+    product: 'product',
+    suppliers: 'supplier',
+    supplier: 'supplier',
+    users: 'user',
+    user: 'user',
+    sales: 'order',
+    sale: 'order',
+    orders: 'order',
+    order: 'order',
+    expenses: 'expense',
+    expense: 'expense',
+    employees: 'employee',
+    employee: 'employee',
+    services: 'service',
+    service: 'service',
+    purchase_orders: 'purchase order',
+    purchase_order: 'purchase order',
+    categories: 'category',
+    category: 'category'
+  };
+
+  function getResourceEntity(resource) {
+    const res = String(resource || '').toLowerCase().trim();
+    return RESOURCE_ENTITY_MAP[res] || (res ? res.replace(/[_-]/g, ' ').replace(/s$/, '') : 'item');
+  }
+
+  function getActionInfo(method) {
+    const m = String(method || '').toUpperCase();
+    if (m === 'POST') return { verb: 'created', base: 'create', noun: 'Created' };
+    if (m === 'DELETE') return { verb: 'deleted', base: 'delete', noun: 'Deleted' };
+    if (m === 'PUT' || m === 'PATCH') return { verb: 'updated', base: 'update', noun: 'Updated' };
+    return { verb: 'saved', base: 'save', noun: 'Saved' };
+  }
+
+  function formatTitle(method, resource, ok) {
+    const entity = getResourceEntity(resource);
+    const capEntity = entity.charAt(0).toUpperCase() + entity.slice(1);
+    const action = getActionInfo(method);
+    if (ok) {
+      return `${capEntity} ${action.noun}`;
+    }
+    return `${capEntity} ${action.noun} Failed`;
+  }
+
+  function extractItemName(meta, payload, init) {
+    // 1. Check API payload response
+    if (payload && typeof payload === 'object') {
+      const pName = payload.item_name || payload.name || payload.title || payload.order_ref || payload.po_ref || payload.expense_ref;
+      if (pName && typeof pName === 'string' && pName.trim()) {
+        return pName.trim();
+      }
+      if (payload.data && typeof payload.data === 'object') {
+        const dName = payload.data.item_name || payload.data.name || payload.data.title || payload.data.order_ref || payload.data.po_ref;
+        if (dName && typeof dName === 'string' && dName.trim()) {
+          return dName.trim();
+        }
+      }
+    }
+
+    // 2. Check query string in URL
+    try {
+      const params = new URLSearchParams((meta.url || '').split('?')[1] || '');
+      const qName = params.get('name') || params.get('item_name') || params.get('title') || params.get('ref');
+      if (qName && qName.trim()) {
+        return qName.trim();
+      }
+    } catch (_) {}
+
+    // 3. Check request body
+    if (init && init.body) {
+      try {
+        const bodyObj = typeof init.body === 'string' ? JSON.parse(init.body) : init.body;
+        if (bodyObj && typeof bodyObj === 'object') {
+          const bName = bodyObj.name || bodyObj.item_name || bodyObj.title || bodyObj.full_name || bodyObj.order_ref || bodyObj.po_ref || bodyObj.description;
+          if (bName && typeof bName === 'string' && bName.trim()) {
+            return bName.trim();
+          }
+          if (Array.isArray(bodyObj.items) && bodyObj.items.length > 0) {
+            const first = bodyObj.items[0];
+            const iName = first.name || first.product_name;
+            if (iName && typeof iName === 'string' && iName.trim()) {
+              return bodyObj.items.length > 1 ? `${iName.trim()} (+${bodyObj.items.length - 1} items)` : iName.trim();
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    return null;
+  }
+
+  function formatActionMessage(method, resource, itemName, userName, ok, errorDetail) {
+    const entity = getResourceEntity(resource);
+    const action = getActionInfo(method);
+    const namePart = itemName ? ` ${itemName}` : '';
+
+    if (ok) {
+      // Exactly matches: "The product red pen was deleted by (user name)"
+      return `The ${entity}${namePart} was ${action.verb} by ${userName}.`;
+    }
+
+    const detail = errorDetail ? `: ${errorDetail}` : '.';
+    return `The ${entity}${namePart} could not be ${action.verb} by ${userName}${detail}`;
   }
 
   function isApiMutation(input, init) {
@@ -225,7 +355,7 @@
     return { track: /api\/index\.php/i.test(url) && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method), method, url };
   }
 
-  // Observe API write requests and report the actual HTTP/API result with actor and sensitivity scope.
+  // Observe API write requests and report the actual HTTP/API result with actor, action, item, and sensitivity scope.
   if (!window.__bookwiseNotificationFetchPatched && window.fetch) {
     window.__bookwiseNotificationFetchPatched = true;
     const nativeFetch = window.fetch.bind(window);
@@ -238,28 +368,35 @@
           try { payload = await response.clone().json(); } catch (_) {}
           const apiSuccess = payload && Object.prototype.hasOwnProperty.call(payload, 'success') ? payload.success !== false : response.ok;
           const ok = response.ok && apiSuccess;
-          const title = operationName(meta.method, meta.url);
-          const message = payload && (payload.message || payload.error)
-            ? String(payload.message || payload.error)
-            : (ok ? `${title} successfully.` : `${title} failed (HTTP ${response.status}).`);
 
-          const params = new URLSearchParams(meta.url.split('?')[1] || '');
+          const params = new URLSearchParams((meta.url || '').split('?')[1] || '');
           const resource = params.get('resource') || '';
           const scope = getResourceScope(resource);
           const actor = getCurrentActor();
+          const userName = getCurrentUserName();
+          const itemName = extractItemName(meta, payload, init);
 
-          notify(ok ? 'success' : 'error', ok ? `${title} — Success` : `${title} — Failed`, message, scope, actor);
+          const errorDetail = !ok ? (payload && (payload.message || payload.error) ? String(payload.message || payload.error) : `HTTP ${response.status}`) : '';
+          const title = formatTitle(meta.method, resource, ok);
+          const message = formatActionMessage(meta.method, resource, itemName, userName, ok, errorDetail);
+
+          notify(ok ? 'success' : 'error', title, message, scope, actor);
         }
         return response;
       } catch (error) {
         if (meta.track) {
-          const title = operationName(meta.method, meta.url);
-          const params = new URLSearchParams(meta.url.split('?')[1] || '');
+          const params = new URLSearchParams((meta.url || '').split('?')[1] || '');
           const resource = params.get('resource') || '';
           const scope = getResourceScope(resource);
           const actor = getCurrentActor();
+          const userName = getCurrentUserName();
+          const itemName = extractItemName(meta, null, init);
 
-          notify('error', `${title} — Failed`, error && error.message ? error.message : 'Could not connect to the server.', scope, actor);
+          const title = formatTitle(meta.method, resource, false);
+          const errText = error && error.message ? error.message : 'Could not connect to the server.';
+          const message = formatActionMessage(meta.method, resource, itemName, userName, false, errText);
+
+          notify('error', title, message, scope, actor);
         }
         throw error;
       }
@@ -291,7 +428,7 @@
       .bw-notification-copy strong{display:block;font-size:12.5px;color:#1b2a4a}
       .bw-scope-badge{font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:4px;text-transform:uppercase;letter-spacing:0.4px;white-space:nowrap}
       .bw-scope-badge.admin{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
-      .bw-notification-copy p{margin:0;color:#625f59;font-size:12px;line-height:1.45;overflow-wrap:anywhere}
+      .bw-notification-copy p{margin:3px 0 0;color:#334155;font-size:12.5px;line-height:1.45;font-weight:500;overflow-wrap:anywhere}
       .bw-notification-meta{display:flex;align-items:center;justify-content:space-between;margin-top:6px;gap:8px;font-size:11px}
       .bw-notification-actor{color:#7a2e2e;font-weight:600;background:#fdf2f0;padding:2px 7px;border-radius:4px;border:1px solid #f5dedb;font-size:11px}
       .bw-notification-copy time{color:#999184;font-size:10.5px}
@@ -305,7 +442,7 @@
       .bw-toast.is-error .bw-toast-mark{background:#fee2e2;color:#b91c1c}
       .bw-toast-copy{flex:1;min-width:0}
       .bw-toast-copy strong{display:block;color:#1b2a4a;font-size:12.5px}
-      .bw-toast-copy p{margin:4px 0 0;color:#625f59;font-size:12px;line-height:1.4;overflow-wrap:anywhere}
+      .bw-toast-copy p{margin:4px 0 0;color:#334155;font-size:12.5px;line-height:1.4;font-weight:500;overflow-wrap:anywhere}
       .bw-toast-actor{display:inline-block;margin-top:5px;color:#7a2e2e;font-size:11px;font-weight:600;background:#fdf2f0;padding:2px 7px;border-radius:4px;border:1px solid #f5dedb}
       .bw-toast button{border:0;background:transparent;color:#8a8377;cursor:pointer;font-size:18px;line-height:1}
       .bw-toast button:hover{color:#7a2e2e}
