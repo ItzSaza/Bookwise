@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS sales (
 CREATE TABLE IF NOT EXISTS sale_items (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     sale_id INT UNSIGNED NOT NULL,
+    product_id INT UNSIGNED NULL,
     product_name VARCHAR(180) NOT NULL,
     quantity INT UNSIGNED NOT NULL,
     unit_price DECIMAL(12, 2) NOT NULL,
@@ -88,6 +89,9 @@ CREATE TABLE IF NOT EXISTS sale_items (
     CONSTRAINT fk_sale_items_sale
         FOREIGN KEY (sale_id) REFERENCES sales (id)
         ON DELETE CASCADE,
+    CONSTRAINT fk_sale_items_product
+        FOREIGN KEY (product_id) REFERENCES products (id)
+        ON DELETE SET NULL,
     CONSTRAINT chk_sale_items_quantity CHECK (quantity > 0),
     CONSTRAINT chk_sale_items_unit_price CHECK (unit_price >= 0)
 ) ENGINE=InnoDB;

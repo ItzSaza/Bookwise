@@ -318,25 +318,25 @@
       <button type="button" class="modal-close" onclick="document.getElementById('btn-cancel-employee').click()" aria-label="Close dialog">&times;</button>
     </div>
     <p class="modal-sub" id="employee-modal-sub">Enter the employee's details below.</p>
-    <form id="employee-form">
+    <form id="employee-form" novalidate>
       <div class="field" style="margin-bottom:14px">
         <label for="f-name">Full name</label>
-        <input type="text" id="f-name" required placeholder="e.g. A B Kumara">
+        <input type="text" id="f-name" name="name" required minlength="2" maxlength="150" placeholder="e.g. A B Kumara">
       </div>
       <div class="field-row" style="margin-bottom:14px">
         <div class="field">
           <label for="f-role">Role</label>
-          <input type="text" id="f-role" required placeholder="e.g. Cashier">
+          <input type="text" id="f-role" name="role" required minlength="2" maxlength="100" placeholder="e.g. Cashier">
         </div>
         <div class="field">
           <label for="f-phone">Phone</label>
-          <input type="text" id="f-phone" required placeholder="e.g. 077 123 4567">
+          <input type="tel" id="f-phone" name="phone" required pattern="^(?:\+94|0)\d{9}$" maxlength="20" placeholder="e.g. 077 123 4567" title="Valid Sri Lankan phone number (e.g. 0771234567 or +94771234567)">
         </div>
       </div>
       <div class="field-row" style="margin-bottom:14px">
         <div class="field">
           <label for="f-department">Department</label>
-          <select id="f-department">
+          <select id="f-department" name="department" required>
             <option>Management</option>
             <option>Orders &amp; POS</option>
             <option>Inventory</option>
@@ -347,7 +347,7 @@
         </div>
         <div class="field">
           <label for="f-status">Status</label>
-          <select id="f-status">
+          <select id="f-status" name="status" required>
             <option value="active">Active</option>
             <option value="leave">On Leave</option>
             <option value="inactive">Inactive</option>
@@ -381,28 +381,32 @@
         <label for="s-employee">Employee</label>
         <select id="s-employee" required></select>
       </div>
+      <div class="field" style="margin-bottom:14px">
+        <label for="s-day">Day of Week</label>
+        <select id="s-day" required>
+          <option>Monday</option>
+          <option>Tuesday</option>
+          <option>Wednesday</option>
+          <option>Thursday</option>
+          <option>Friday</option>
+          <option>Saturday</option>
+          <option>Sunday</option>
+        </select>
+      </div>
       <div class="field-row" style="margin-bottom:14px">
         <div class="field">
-          <label for="s-day">Day</label>
-          <select id="s-day">
-            <option>Monday</option>
-            <option>Tuesday</option>
-            <option>Wednesday</option>
-            <option>Thursday</option>
-            <option>Friday</option>
-            <option>Saturday</option>
-            <option>Sunday</option>
-          </select>
+          <label for="s-start-time">Start Time</label>
+          <input type="time" id="s-start-time" required value="09:00">
         </div>
         <div class="field">
-          <label for="s-time">Time</label>
-          <input type="text" id="s-time" required placeholder="e.g. 9:00 AM – 5:00 PM">
+          <label for="s-end-time">End Time</label>
+          <input type="time" id="s-end-time" required value="17:00">
         </div>
       </div>
       <div class="modal-actions">
         <div class="modal-actions-right">
           <button type="button" class="btn btn-ghost" id="btn-cancel-shift">Cancel</button>
-          <button type="submit" class="btn btn-primary">Add Shift</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-shift">Add Shift</button>
         </div>
       </div>
     </form>
@@ -668,14 +672,45 @@
 
   empForm.addEventListener("submit", function(e){
     e.preventDefault();
-    var name = document.getElementById("f-name").value.trim();
-    var role = document.getElementById("f-role").value.trim();
-    var phone = document.getElementById("f-phone").value.trim();
-    var department = document.getElementById("f-department").value;
-    var status = document.getElementById("f-status").value;
-    if (!name || !role || !phone) return;
+    if (typeof window.clearFieldErrors === 'function') window.clearFieldErrors(empForm);
 
-    var payload = { name: name, role: role, phone: phone, department: department, status: status };
+    var nameInput = document.getElementById("f-name");
+    var roleInput = document.getElementById("f-role");
+    var phoneInput = document.getElementById("f-phone");
+    var deptInput = document.getElementById("f-department");
+    var statusInput = document.getElementById("f-status");
+
+    var name = nameInput.value.trim();
+    var role = roleInput.value.trim();
+    var rawPhone = phoneInput.value.replace(/[\s-]/g, "");
+    var department = deptInput.value;
+    var status = statusInput.value;
+
+    var errors = {};
+    if (!name || name.length < 2 || name.length > 150) {
+      errors["f-name"] = "Full name must be between 2 and 150 characters.";
+    }
+    if (!role || role.length < 2 || role.length > 100) {
+      errors["f-role"] = "Role must be between 2 and 100 characters.";
+    }
+    if (!/^(?:\+94|0)\d{9}$/.test(rawPhone)) {
+      errors["f-phone"] = "Enter a valid Sri Lankan phone number (e.g. 077 123 4567 or +94 77 123 4567).";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      if (typeof window.showFieldErrors === 'function') {
+        window.showFieldErrors(empForm, errors);
+      } else {
+        showToast(Object.values(errors)[0]);
+      }
+      return;
+    }
+
+    var originalText = saveBtn.textContent;
+    saveBtn.disabled = true;
+    saveBtn.textContent = editingId === null ? "Adding…" : "Saving…";
+
+    var payload = { name: name, role: role, phone: rawPhone, department: department, status: status };
     var url = "api/index.php?resource=employees" + (editingId === null ? "" : "&id=" + editingId);
     fetch(url, {
       method: editingId === null ? "POST" : "PUT",
@@ -683,11 +718,25 @@
       body: JSON.stringify(payload)
     }).then(function(response){ return response.json().then(function(result){ return { response: response, result: result }; }); })
       .then(function(data){
-        if (!data.response.ok || !data.result.success) throw new Error(data.result.message || "Could not save employee.");
+        if (!data.response.ok || !data.result.success) {
+          if (data.result.errors && typeof window.showFieldErrors === 'function') {
+            window.showFieldErrors(empForm, data.result.errors, data.result.message);
+          }
+          throw new Error(data.result.message || "Could not save employee.");
+        }
         closeEmployeeModal();
-        showToast(data.result.message);
+        if (typeof window.showAppNotification === 'function') {
+          window.showAppNotification('success', 'Employee Saved', data.result.message || 'Employee record saved.');
+        } else {
+          showToast(data.result.message);
+        }
         return loadEmployees();
-      }).catch(function(error){ showToast(error.message); });
+      }).catch(function(error){
+        showToast(error.message);
+      }).finally(function(){
+        saveBtn.disabled = false;
+        saveBtn.textContent = originalText;
+      });
   });
 
   async function deleteEmployee(id, name){
@@ -700,7 +749,11 @@
       var result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.message || "Could not delete employee.");
       shifts = shifts.filter(function(s){ return s.employeeId !== id; });
-      showToast(result.message || "Employee deleted successfully.");
+      if (typeof window.showAppNotification === 'function') {
+        window.showAppNotification('success', 'Employee Deleted', result.message || "Employee deleted successfully.");
+      } else {
+        showToast(result.message || "Employee deleted successfully.");
+      }
       if (editingId === id) closeEmployeeModal();
       await loadEmployees();
     } catch (error) {
@@ -721,6 +774,8 @@
       return;
     }
     shiftForm.reset();
+    document.getElementById("s-start-time").value = "09:00";
+    document.getElementById("s-end-time").value = "17:00";
     shiftModalOverlay.classList.add("open");
   });
 
@@ -730,18 +785,69 @@
     if (e.target === shiftModalOverlay) closeShiftModal();
   });
 
+  function format12Hour(timeStr) {
+    var parts = timeStr.split(":");
+    var h = parseInt(parts[0], 10);
+    var m = parts[1] || "00";
+    var ampm = h >= 12 ? "PM" : "AM";
+    h = h % 12 || 12;
+    return (h < 10 ? "0" + h : h) + ":" + m + " " + ampm;
+  }
+
   shiftForm.addEventListener("submit", function(e){
     e.preventDefault();
     var empId = parseInt(shiftEmployeeSelect.value, 10);
     var emp = employees.find(function(e){ return e.id === empId; });
-    if (!emp) return;
+    if (!emp) {
+      showToast("Please select an employee.");
+      return;
+    }
     var day = document.getElementById("s-day").value;
-    var time = document.getElementById("s-time").value.trim();
-    if (!time) return;
-    shifts.push({ id: nextShiftId++, employeeId: emp.id, employeeName: emp.name, day: day, time: time });
+    var startTime = document.getElementById("s-start-time").value;
+    var endTime = document.getElementById("s-end-time").value;
+
+    if (!startTime || !endTime) {
+      showToast("Please specify both shift start and end times.");
+      return;
+    }
+
+    if (startTime >= endTime) {
+      showToast("Shift start time (" + startTime + ") must be earlier than end time (" + endTime + ").");
+      document.getElementById("s-start-time").focus();
+      return;
+    }
+
+    // Overlap validation: check if employee already has an overlapping shift on the same day
+    var overlapping = shifts.find(function(s) {
+      if (s.employeeId !== emp.id || s.day !== day) return false;
+      if (s.startTime && s.endTime) {
+        return (startTime < s.endTime && endTime > s.startTime);
+      }
+      return false;
+    });
+
+    if (overlapping) {
+      showToast("Shift overlaps with " + emp.name + "’s existing shift (" + overlapping.time + ") on " + day + ".");
+      return;
+    }
+
+    var timeLabel = format12Hour(startTime) + " – " + format12Hour(endTime);
+    shifts.push({
+      id: nextShiftId++,
+      employeeId: emp.id,
+      employeeName: emp.name,
+      day: day,
+      time: timeLabel,
+      startTime: startTime,
+      endTime: endTime
+    });
     closeShiftModal();
     renderShifts();
-    showToast("Shift scheduled");
+    if (typeof window.showAppNotification === 'function') {
+      window.showAppNotification('success', 'Shift Scheduled', "Shift added for " + emp.name + " (" + day + ", " + timeLabel + ").");
+    } else {
+      showToast("Shift scheduled");
+    }
   });
 
   document.addEventListener("keydown", function(e){

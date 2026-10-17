@@ -1,3 +1,55 @@
+// Global security and validation utility helpers
+window.escapeHtml = window.escapeHtml || function(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  }[char]));
+};
+
+window.clearFieldErrors = function(container) {
+  if (!container) return;
+  container.querySelectorAll('.field-error').forEach(el => el.remove());
+  container.querySelectorAll('.has-error').forEach(el => el.classList.remove('has-error'));
+  const banner = container.querySelector('.form-error-banner');
+  if (banner) banner.remove();
+};
+
+window.showFieldErrors = function(container, errors, generalMessage) {
+  if (!container) return;
+  window.clearFieldErrors(container);
+
+  if (generalMessage && (!errors || Object.keys(errors).length === 0)) {
+    const banner = document.createElement('div');
+    banner.className = 'form-error-banner';
+    banner.textContent = generalMessage;
+    container.prepend(banner);
+    return;
+  }
+
+  if (typeof errors === 'object' && errors !== null) {
+    let firstInput = null;
+    for (const [key, msg] of Object.entries(errors)) {
+      const camel = key.replace(/_([a-z])/g, (_, g) => g.toUpperCase());
+      const input = container.querySelector(`#${key}, #${camel}, [name="${key}"], [data-field="${key}"]`);
+      if (input) {
+        input.classList.add('has-error');
+        const errDiv = document.createElement('div');
+        errDiv.className = 'field-error';
+        errDiv.textContent = msg;
+        const parentField = input.closest('.field') || input.parentElement;
+        parentField.appendChild(errDiv);
+        if (!firstInput) firstInput = input;
+      }
+    }
+    if (firstInput) {
+      firstInput.focus();
+    }
+  }
+};
+
 document.addEventListener('DOMContentLoaded', () => {
   // Highlight active link based on current page URL
   const currentPath = window.location.pathname.split('/').pop() || 'user-management.html';
@@ -634,6 +686,12 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    const saleBtn = $("completeSaleBtn");
+    if (saleBtn) {
+      saleBtn.disabled = true;
+      saleBtn.textContent = "Processing Sale…";
+    }
+
     const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
     const discount = subtotal * discountPercent / 100;
     const tax = Math.max(0, subtotal - discount) * 0.05;
@@ -658,11 +716,12 @@ document.addEventListener("DOMContentLoaded", () => {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({
+          customer_name: "Walk-in Customer",
           payment_method: selectedPayment,
-          subtotal,
+          discount_percent: discountPercent,
           discount_amount: discount,
-          tax_amount: tax,
           items: cart.map(item => ({
+            product_id: Number.isInteger(Number(item.id)) ? Number(item.id) : null,
             name: item.title,
             quantity: item.qty,
             unit_price: item.price
@@ -672,14 +731,28 @@ document.addEventListener("DOMContentLoaded", () => {
       const result = await response.json();
       if (!response.ok || !result.success) {
         toast(result.message || "Could not save the sale.");
+        if (saleBtn) {
+          saleBtn.disabled = cart.length === 0;
+          saleBtn.textContent = "Complete Sale";
+        }
         return;
       }
       newOrder.ref = result.order_ref;
       if (result.id) newOrder.id = result.id;
+      if (result.total_amount !== undefined) newOrder.amount = result.total_amount;
       orders.unshift(newOrder);
     } catch (error) {
       toast("Could not connect to the sales database.");
+      if (saleBtn) {
+        saleBtn.disabled = cart.length === 0;
+        saleBtn.textContent = "Complete Sale";
+      }
       return;
+    } finally {
+      if (saleBtn) {
+        saleBtn.disabled = cart.length === 0;
+        saleBtn.textContent = "Complete Sale";
+      }
     }
 
     // Reduce demo stock.

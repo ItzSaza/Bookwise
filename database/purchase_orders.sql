@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS purchase_orders (
         FOREIGN KEY (supplier_id) REFERENCES suppliers (id)
         ON UPDATE CASCADE
         ON DELETE RESTRICT,
+    CONSTRAINT chk_po_expected_date
+        CHECK (expected_date IS NULL OR expected_date >= order_date),
     INDEX idx_po_status (status),
     INDEX idx_po_supplier (supplier_id)
 ) ENGINE=InnoDB;

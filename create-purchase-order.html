@@ -53,7 +53,7 @@
         <div class="form-grid">
           <div class="field">
             <label>Supplier</label>
-            <select id="poSupplier"><option value="">Loading suppliers…</option></select>
+            <select id="poSupplier" required><option value="">Loading suppliers…</option></select>
           </div>
 
           <div class="field">
@@ -63,7 +63,7 @@
 
           <div class="field">
             <label>Order Date</label>
-            <input type="date" id="poOrderDate">
+            <input type="date" id="poOrderDate" required>
           </div>
 
           <div class="field">
@@ -83,9 +83,9 @@
             <thead><tr><th>Product</th><th>Quantity</th><th>Unit Cost (Rs.)</th><th>Line Total</th><th></th></tr></thead>
             <tbody id="poItemsBody">
               <tr>
-                <td><input class="tag po-name" style="border:1px solid var(--line); width:100%;" placeholder="e.g. Grade 10 Science Textbook"></td>
-                <td><input class="tag qty" style="border:1px solid var(--line); width:80px;" type="number" value="50" min="1"></td>
-                <td><input class="tag cost" style="border:1px solid var(--line); width:100px;" type="number" value="420" min="0"></td>
+                <td><input class="tag po-name" style="border:1px solid var(--line); width:100%;" placeholder="e.g. Grade 10 Science Textbook" maxlength="180" required></td>
+                <td><input class="tag qty" style="border:1px solid var(--line); width:80px;" type="number" value="50" min="1" step="1" required></td>
+                <td><input class="tag cost" style="border:1px solid var(--line); width:100px;" type="number" value="420" min="0" step="0.01" required></td>
                 <td class="cell-mono line-total">Rs. 21,000</td>
                 <td><button class="icon-btn remove-btn" type="button">Remove</button></td>
               </tr>
@@ -109,7 +109,7 @@
         <div class="form-grid">
           <div class="field full">
             <label>Order Notes</label>
-            <input id="poNotes" placeholder="Delivery instructions, special terms, etc.">
+            <input id="poNotes" maxlength="1000" placeholder="Delivery instructions, special terms, etc.">
           </div>
         </div>
         <div id="poMessage" style="padding:0 22px; color:var(--burgundy); font-size:12.5px; font-weight:600;"></div>
@@ -150,11 +150,13 @@
 
     function newRow(name = '', qty = 1, cost = 0) {
       const tr = document.createElement('tr');
-      const lineTotal = (parseFloat(qty) || 0) * (parseFloat(cost) || 0);
+      const numQty = Math.max(1, parseInt(qty, 10) || 1);
+      const numCost = Math.max(0, parseFloat(cost) || 0);
+      const lineTotal = numQty * numCost;
       tr.innerHTML = [
-        `<td><input class="tag po-name" style="border:1px solid var(--line); width:100%;" placeholder="Product name" value="${escapeHtml(name)}"></td>`,
-        `<td><input class="tag qty" style="border:1px solid var(--line); width:80px;" type="number" value="${qty}" min="1"></td>`,
-        `<td><input class="tag cost" style="border:1px solid var(--line); width:100px;" type="number" value="${cost}" min="0"></td>`,
+        `<td><input class="tag po-name" style="border:1px solid var(--line); width:100%;" placeholder="Product name" maxlength="180" value="${escapeHtml(name)}"></td>`,
+        `<td><input class="tag qty" style="border:1px solid var(--line); width:80px;" type="number" value="${numQty}" min="1" step="1"></td>`,
+        `<td><input class="tag cost" style="border:1px solid var(--line); width:100px;" type="number" value="${numCost}" min="0" step="0.01"></td>`,
         `<td class="cell-mono line-total">${money(lineTotal)}</td>`,
         '<td><button class="icon-btn remove-btn" type="button">Remove</button></td>'
       ].join('');
@@ -168,7 +170,7 @@
       rows.forEach(row => {
         const qty = parseFloat(row.querySelector('.qty').value) || 0;
         const cost = parseFloat(row.querySelector('.cost').value) || 0;
-        const lineTotal = qty * cost;
+        const lineTotal = Math.max(0, qty) * Math.max(0, cost);
         row.querySelector('.line-total').textContent = money(lineTotal);
         total += lineTotal;
       });
@@ -202,7 +204,7 @@
         supplierSelect.innerHTML = '<option value="">Could not load suppliers</option>';
         return;
       }
-      supplierSelect.innerHTML = result.data
+      supplierSelect.innerHTML = '<option value="">Select an active supplier</option>' + result.data
         .map(supplier => `<option value="${supplier.id}">${escapeHtml(supplier.name)}</option>`)
         .join('');
     }
@@ -239,6 +241,18 @@
           });
           recalc();
         }
+
+        if (po.status === 'Delivered' || po.status === 'Cancelled') {
+          messageEl.innerHTML = `<span class="badge ${po.status === 'Delivered' ? 'green' : 'grey'}" style="font-size:12.5px; padding:6px 12px; margin-bottom:12px;">This purchase order is ${escapeHtml(po.status)} and cannot be modified.</span>`;
+          saveBtn.style.display = 'none';
+          addItemBtn.style.display = 'none';
+          supplierSelect.disabled = true;
+          document.getElementById('poOrderDate').disabled = true;
+          document.getElementById('poExpectedDate').disabled = true;
+          document.getElementById('poNotes').disabled = true;
+          itemsBody.querySelectorAll('input').forEach(input => input.disabled = true);
+          itemsBody.querySelectorAll('.remove-btn').forEach(btn => btn.style.display = 'none');
+        }
       } catch (err) {
         messageEl.textContent = 'Error loading purchase order: ' + err.message;
       }
@@ -246,26 +260,80 @@
 
     saveBtn.addEventListener('click', async () => {
       messageEl.textContent = '';
+      document.querySelectorAll('.has-error').forEach(el => el.classList.remove('has-error'));
 
-      const items = Array.from(itemsBody.querySelectorAll('tr')).map(row => ({
-        product_name: row.querySelector('.po-name').value.trim(),
-        quantity: parseInt(row.querySelector('.qty').value, 10),
-        unit_cost: parseFloat(row.querySelector('.cost').value)
-      }));
-
-      if (!supplierSelect.value) {
+      const supplierId = supplierSelect.value;
+      if (!supplierId) {
+        supplierSelect.classList.add('has-error');
         messageEl.textContent = 'Please select a supplier.';
+        supplierSelect.focus();
         return;
       }
-      if (items.some(item => !item.product_name)) {
-        messageEl.textContent = 'Every item needs a product name.';
+
+      const orderDate = document.getElementById('poOrderDate').value;
+      if (!orderDate) {
+        document.getElementById('poOrderDate').classList.add('has-error');
+        messageEl.textContent = 'Please specify a valid order date.';
         return;
+      }
+
+      const expectedDate = document.getElementById('poExpectedDate').value || null;
+      if (expectedDate && expectedDate < orderDate) {
+        document.getElementById('poExpectedDate').classList.add('has-error');
+        messageEl.textContent = 'Expected delivery date cannot be earlier than order date.';
+        document.getElementById('poExpectedDate').focus();
+        return;
+      }
+
+      const rows = Array.from(itemsBody.querySelectorAll('tr'));
+      if (rows.length === 0) {
+        messageEl.textContent = 'Order must contain at least one item.';
+        return;
+      }
+
+      const items = [];
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const nameInput = row.querySelector('.po-name');
+        const qtyInput = row.querySelector('.qty');
+        const costInput = row.querySelector('.cost');
+
+        const productName = (nameInput ? nameInput.value : '').trim();
+        const qtyNum = parseInt(qtyInput ? qtyInput.value : '', 10);
+        const costNum = parseFloat(costInput ? costInput.value : '');
+
+        if (!productName) {
+          nameInput.classList.add('has-error');
+          messageEl.textContent = `Product name is required for item row #${i + 1}.`;
+          nameInput.focus();
+          return;
+        }
+
+        if (!Number.isInteger(qtyNum) || qtyNum <= 0) {
+          qtyInput.classList.add('has-error');
+          messageEl.textContent = `Quantity must be a positive integer for item "${productName}".`;
+          qtyInput.focus();
+          return;
+        }
+
+        if (!Number.isFinite(costNum) || costNum < 0) {
+          costInput.classList.add('has-error');
+          messageEl.textContent = `Unit cost cannot be negative for item "${productName}".`;
+          costInput.focus();
+          return;
+        }
+
+        items.push({
+          product_name: productName,
+          quantity: qtyNum,
+          unit_cost: costNum
+        });
       }
 
       const payload = {
-        supplier_id: supplierSelect.value,
-        order_date: document.getElementById('poOrderDate').value,
-        expected_date: document.getElementById('poExpectedDate').value || null,
+        supplier_id: supplierId,
+        order_date: orderDate,
+        expected_date: expectedDate,
         notes: document.getElementById('poNotes').value.trim(),
         items
       };
@@ -285,13 +353,22 @@
         const result = await response.json();
         if (!response.ok || !result.success) {
           messageEl.textContent = result.message || 'Something went wrong.';
+          if (typeof window.showAppNotification === 'function') {
+            window.showAppNotification('error', 'Purchase Order Error', result.message || 'Validation failed');
+          }
           saveBtn.disabled = false;
           saveBtn.textContent = btnLabel;
           return;
         }
-        window.location.href = 'suppliers.html';
+
+        if (typeof window.showAppNotification === 'function') {
+          window.showAppNotification('success', 'Purchase Order Saved', result.message || 'Purchase order saved successfully.');
+        }
+        setTimeout(() => {
+          window.location.href = 'suppliers.html';
+        }, 250);
       } catch (error) {
-        messageEl.textContent = 'Could not connect to the database. Is XAMPP running?';
+        messageEl.textContent = 'Could not connect to the database. Is the server running?';
         saveBtn.disabled = false;
         saveBtn.textContent = btnLabel;
       }

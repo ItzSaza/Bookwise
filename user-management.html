@@ -153,21 +153,33 @@
         </div>
       </div>
 
-      <div class="form-grid">
+      <form class="form-grid" id="userForm" autocomplete="off" onsubmit="return false;">
 
         <div class="field">
-          <label>Full Name</label>
-          <input type="text" id="newUserName" placeholder="Enter full name" required>
+          <label for="newUserName">Full Name</label>
+          <input type="text" id="newUserName" name="full_name" placeholder="Enter full name" required minlength="2" maxlength="150">
         </div>
 
         <div class="field">
-          <label>Email</label>
-          <input type="email" id="newUserEmail" placeholder="Enter email" required>
+          <label for="newUserUsername">Username</label>
+          <input type="text" id="newUserUsername" name="username" placeholder="e.g. jsmith (optional)" maxlength="60" pattern="^[a-z0-9._]{3,60}$">
+          <div class="signature" style="font-size:11px;">3–60 lowercase letters, numbers, dot or underscore. Auto-derived if blank.</div>
         </div>
 
         <div class="field">
-          <label>Role</label>
-          <select id="newUserRole">
+          <label for="newUserEmail">Email Address</label>
+          <input type="email" id="newUserEmail" name="email" placeholder="Enter email" required maxlength="150">
+        </div>
+
+        <div class="field" id="passwordField">
+          <label for="newUserPassword" id="passwordLabel">Password</label>
+          <input type="password" id="newUserPassword" name="password" placeholder="••••••••" minlength="8" maxlength="72">
+          <div class="signature" id="passwordHint" style="font-size:11px;">Required on account creation (min. 8 characters).</div>
+        </div>
+
+        <div class="field">
+          <label for="newUserRole">System Role</label>
+          <select id="newUserRole" name="role" required>
             <option value="Admin">Admin</option>
             <option value="Cashier">Cashier</option>
             <option value="Staff">Staff</option>
@@ -175,8 +187,8 @@
         </div>
 
         <div class="field">
-          <label>Status</label>
-          <select id="newUserStatus">
+          <label for="newUserStatus">Account Status</label>
+          <select id="newUserStatus" name="status" required>
             <option value="Active">Active</option>
             <option value="Inactive">Inactive</option>
           </select>
@@ -184,17 +196,17 @@
 
         <div class="field full">
           <div class="row-actions">
-            <button class="btn btn-primary" id="saveUserBtn">
+            <button class="btn btn-primary" id="saveUserBtn" type="button">
               Save User
             </button>
 
-            <button class="btn btn-ghost" id="cancelUserBtn">
+            <button class="btn btn-ghost" id="cancelUserBtn" type="button">
               Cancel
             </button>
           </div>
         </div>
 
-      </div>
+      </form>
 
     </section>
 
@@ -207,14 +219,26 @@
   (async function () {
     const tableBody = document.getElementById('usersTableBody');
     const formPanel = document.getElementById('userFormPanel');
+    const userForm = document.getElementById('userForm');
     const formTitle = document.getElementById('userFormTitle');
     const formSub = document.getElementById('userFormSub');
     const saveUserBtn = document.getElementById('saveUserBtn');
+    const passwordLabel = document.getElementById('passwordLabel');
+    const passwordHint = document.getElementById('passwordHint');
+    const passwordInput = document.getElementById('newUserPassword');
     let allUsers = [];
     let editingUserId = null;
 
+    function getLoggedInUser() {
+      try {
+        return JSON.parse(sessionStorage.getItem('bookwise_user') || localStorage.getItem('bookwise_user') || '{}');
+      } catch (_) {
+        return {};
+      }
+    }
+
     function escapeHtml(value) {
-      return String(value).replace(/[&<>"']/g, character => ({
+      return String(value || '').replace(/[&<>"']/g, character => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
       }[character]));
     }
@@ -224,12 +248,18 @@
       const role = document.getElementById('roleFilter').value;
       const status = document.getElementById('statusFilter').value;
       const visible = allUsers.filter(user =>
-        user.full_name.toLowerCase().includes(query)
-        && (role === 'All' || user.role === role)
+        (user.full_name || '').toLowerCase().includes(query)
+        || (user.username || '').toLowerCase().includes(query)
+        || (user.email || '').toLowerCase().includes(query)
+      ).filter(user =>
+        (role === 'All' || user.role === role)
         && (status === 'All' || user.status === status)
       );
       tableBody.innerHTML = visible.map(user => `<tr>
-        <td class="cell-strong">${escapeHtml(user.full_name)}</td>
+        <td class="cell-strong">
+          ${escapeHtml(user.full_name)}
+          <div style="font-size:11.5px; color:var(--muted); font-family:'JetBrains Mono', monospace;">@${escapeHtml(user.username || '—')}</div>
+        </td>
         <td><span class="badge ${user.role === 'Admin' ? 'navy' : user.role === 'Cashier' ? 'red' : 'gold'}">${user.role}</span></td>
         <td class="cell-mono">${escapeHtml(user.email)}</td>
         <td><span class="badge ${user.status === 'Active' ? 'green' : 'grey'}">${user.status}</span></td>
@@ -257,13 +287,19 @@
 
     function openAddMode() {
       editingUserId = null;
+      if (typeof window.clearFieldErrors === 'function') window.clearFieldErrors(formPanel);
       formTitle.textContent = 'Add New User';
       formSub.textContent = 'Create a new system user and assign an appropriate role';
       saveUserBtn.textContent = 'Save User';
       document.getElementById('newUserName').value = '';
+      document.getElementById('newUserUsername').value = '';
       document.getElementById('newUserEmail').value = '';
       document.getElementById('newUserRole').value = 'Staff';
       document.getElementById('newUserStatus').value = 'Active';
+      passwordInput.value = '';
+      passwordInput.required = true;
+      passwordLabel.textContent = 'Password';
+      passwordHint.textContent = 'Required on account creation (min. 8 characters).';
       formPanel.classList.add('show');
       formPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -272,19 +308,26 @@
       const user = allUsers.find(u => Number(u.id) === Number(userId));
       if (!user) return;
       editingUserId = user.id;
+      if (typeof window.clearFieldErrors === 'function') window.clearFieldErrors(formPanel);
       formTitle.textContent = `Edit User — ${user.full_name}`;
       formSub.textContent = 'Update account details, role permissions, and status';
       saveUserBtn.textContent = 'Update User';
-      document.getElementById('newUserName').value = user.full_name;
-      document.getElementById('newUserEmail').value = user.email;
-      document.getElementById('newUserRole').value = user.role;
-      document.getElementById('newUserStatus').value = user.status;
+      document.getElementById('newUserName').value = user.full_name || '';
+      document.getElementById('newUserUsername').value = user.username || '';
+      document.getElementById('newUserEmail').value = user.email || '';
+      document.getElementById('newUserRole').value = user.role || 'Staff';
+      document.getElementById('newUserStatus').value = user.status || 'Active';
+      passwordInput.value = '';
+      passwordInput.required = false;
+      passwordLabel.textContent = 'New Password (Optional)';
+      passwordHint.textContent = 'Leave blank to preserve existing password.';
       formPanel.classList.add('show');
       formPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     function closeForm() {
       editingUserId = null;
+      if (typeof window.clearFieldErrors === 'function') window.clearFieldErrors(formPanel);
       formPanel.classList.remove('show');
     }
 
@@ -306,6 +349,31 @@
         const userId = deleteButton.dataset.deleteId;
         const user = allUsers.find(u => Number(u.id) === Number(userId));
         const userName = user ? user.full_name : 'this user';
+        const loggedInUser = getLoggedInUser();
+
+        // Guard: Prevent self-deletion
+        if (loggedInUser.id && Number(loggedInUser.id) === Number(userId)) {
+          if (typeof window.showAppNotification === 'function') {
+            window.showAppNotification('error', 'Operation Prohibited', 'You cannot delete your own account while currently logged in.');
+          } else {
+            alert('You cannot delete your own account while currently logged in.');
+          }
+          return;
+        }
+
+        // Guard: Prevent deleting the last active Administrator
+        if (user && user.role === 'Admin' && user.status === 'Active') {
+          const activeAdmins = allUsers.filter(u => u.role === 'Admin' && u.status === 'Active');
+          if (activeAdmins.length <= 1) {
+            if (typeof window.showAppNotification === 'function') {
+              window.showAppNotification('error', 'Operation Prohibited', 'Cannot delete the system’s last active Administrator.');
+            } else {
+              alert('Cannot delete the system’s last active Administrator.');
+            }
+            return;
+          }
+        }
+
         const confirmed = typeof window.bookwiseConfirm === 'function'
           ? await window.bookwiseConfirm(`Are you sure you want to permanently delete "${userName}"?`, { title: 'Delete User', confirmText: 'Delete' })
           : true;
@@ -321,6 +389,9 @@
               alert(result.message || 'Could not delete user.');
             }
             return;
+          }
+          if (typeof window.showAppNotification === 'function') {
+            window.showAppNotification('success', 'User Deleted', `User "${userName}" was removed successfully.`);
           }
           if (editingUserId && Number(editingUserId) === Number(userId)) {
             closeForm();
@@ -339,33 +410,174 @@
       // Toggle Status
       const statusButton = event.target.closest('[data-user-id]');
       if (statusButton) {
-        const response = await fetch(`api/index.php?resource=users&id=${statusButton.dataset.userId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: statusButton.dataset.nextStatus })
-        });
-        const result = await response.json();
-        if (!response.ok || !result.success) return alert(result.message);
-        await loadUsers();
+        const userId = statusButton.dataset.userId;
+        const nextStatus = statusButton.dataset.nextStatus;
+        const user = allUsers.find(u => Number(u.id) === Number(userId));
+        const loggedInUser = getLoggedInUser();
+
+        // Guard: Prevent self-deactivation
+        if (nextStatus === 'Inactive' && loggedInUser.id && Number(loggedInUser.id) === Number(userId)) {
+          if (typeof window.showAppNotification === 'function') {
+            window.showAppNotification('error', 'Operation Prohibited', 'You cannot deactivate your own account while logged in.');
+          } else {
+            alert('You cannot deactivate your own account while logged in.');
+          }
+          return;
+        }
+
+        // Guard: Prevent deactivating the last active Administrator
+        if (nextStatus === 'Inactive' && user && user.role === 'Admin' && user.status === 'Active') {
+          const activeAdmins = allUsers.filter(u => u.role === 'Admin' && u.status === 'Active');
+          if (activeAdmins.length <= 1) {
+            if (typeof window.showAppNotification === 'function') {
+              window.showAppNotification('error', 'Operation Prohibited', 'Cannot deactivate the system’s last active Administrator.');
+            } else {
+              alert('Cannot deactivate the system’s last active Administrator.');
+            }
+            return;
+          }
+        }
+
+        try {
+          const response = await fetch(`api/index.php?resource=users&id=${userId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: nextStatus })
+          });
+          const result = await response.json();
+          if (!response.ok || !result.success) {
+            if (typeof window.showAppNotification === 'function') {
+              window.showAppNotification('error', 'Status Update Failed', result.message || 'Could not update status.');
+            } else {
+              alert(result.message);
+            }
+            return;
+          }
+          if (typeof window.showAppNotification === 'function') {
+            window.showAppNotification('success', 'Status Updated', `User marked as ${nextStatus}.`);
+          }
+          await loadUsers();
+        } catch (err) {
+          alert('Network error updating status: ' + err.message);
+        }
       }
     });
 
     saveUserBtn.addEventListener('click', async () => {
-      const name = document.getElementById('newUserName').value.trim();
-      const email = document.getElementById('newUserEmail').value.trim();
-      const role = document.getElementById('newUserRole').value;
-      const status = document.getElementById('newUserStatus').value;
+      if (typeof window.clearFieldErrors === 'function') {
+        window.clearFieldErrors(formPanel);
+      }
 
-      if (!name || !email) {
-        alert('Please fill in both name and email.');
+      const nameInput = document.getElementById('newUserName');
+      const emailInput = document.getElementById('newUserEmail');
+      const usernameInput = document.getElementById('newUserUsername');
+      const roleInput = document.getElementById('newUserRole');
+      const statusInput = document.getElementById('newUserStatus');
+
+      const name = nameInput.value.trim();
+      const email = emailInput.value.trim();
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value;
+      const role = roleInput.value;
+      const status = statusInput.value;
+      const loggedInUser = getLoggedInUser();
+
+      const errors = {};
+
+      // Name validation
+      if (!name) {
+        errors.newUserName = 'Full name is required.';
+      } else if (name.length < 2 || name.length > 150) {
+        errors.newUserName = 'Full name must be between 2 and 150 characters.';
+      }
+
+      // Email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!email) {
+        errors.newUserEmail = 'Email address is required.';
+      } else if (!emailRegex.test(email) || email.length > 150) {
+        errors.newUserEmail = 'Enter a valid email address (maximum 150 characters).';
+      } else {
+        const emailExists = allUsers.some(u =>
+          (u.email || '').toLowerCase() === email.toLowerCase()
+          && (!editingUserId || Number(u.id) !== Number(editingUserId))
+        );
+        if (emailExists) {
+          errors.newUserEmail = 'A user with this email address already exists.';
+        }
+      }
+
+      // Username validation
+      if (username) {
+        const usernameRegex = /^[a-z0-9._]{3,60}$/;
+        if (!usernameRegex.test(username)) {
+          errors.newUserUsername = 'Username must be 3–60 lowercase letters, numbers, dot or underscore.';
+        } else {
+          const usernameExists = allUsers.some(u =>
+            (u.username || '').toLowerCase() === username.toLowerCase()
+            && (!editingUserId || Number(u.id) !== Number(editingUserId))
+          );
+          if (usernameExists) {
+            errors.newUserUsername = 'This username is already taken.';
+          }
+        }
+      }
+
+      // Password validation
+      if (!editingUserId) {
+        if (!password) {
+          errors.newUserPassword = 'Password is required on account creation.';
+        } else if (password.length < 8) {
+          errors.newUserPassword = 'Password must be at least 8 characters long.';
+        } else if (new TextEncoder().encode(password).length > 72) {
+          errors.newUserPassword = 'Password cannot exceed 72 bytes.';
+        }
+      } else if (password) {
+        if (password.length < 8) {
+          errors.newUserPassword = 'New password must be at least 8 characters long.';
+        } else if (new TextEncoder().encode(password).length > 72) {
+          errors.newUserPassword = 'Password cannot exceed 72 bytes.';
+        }
+      }
+
+      // Business Rule Safeguards:
+      // 1. Cannot deactivate yourself
+      if (editingUserId && loggedInUser.id && Number(loggedInUser.id) === Number(editingUserId) && status === 'Inactive') {
+        errors.newUserStatus = 'You cannot deactivate your own account while logged in.';
+      }
+
+      // 2. Cannot demote or deactivate the last active Admin
+      if (editingUserId) {
+        const originalUser = allUsers.find(u => Number(u.id) === Number(editingUserId));
+        if (originalUser && originalUser.role === 'Admin' && originalUser.status === 'Active') {
+          const otherActiveAdmins = allUsers.filter(u => u.role === 'Admin' && u.status === 'Active' && Number(u.id) !== Number(editingUserId));
+          if (otherActiveAdmins.length === 0 && (role !== 'Admin' || status !== 'Active')) {
+            errors.newUserRole = 'Cannot demote or deactivate the system’s last active Administrator.';
+          }
+        }
+      }
+
+      if (Object.keys(errors).length > 0) {
+        if (typeof window.showFieldErrors === 'function') {
+          window.showFieldErrors(formPanel, errors);
+        } else {
+          alert(Object.values(errors)[0]);
+        }
         return;
       }
 
       const payload = { full_name: name, email, role, status };
+      if (username) payload.username = username;
+      if (password) payload.password = password;
+
       const endpoint = editingUserId
         ? `api/index.php?resource=users&id=${editingUserId}`
         : 'api/index.php?resource=users';
       const method = editingUserId ? 'PUT' : 'POST';
+
+      const originalBtnText = saveUserBtn.textContent;
+      saveUserBtn.disabled = true;
+      saveUserBtn.textContent = editingUserId ? 'Updating…' : 'Saving…';
 
       try {
         const response = await fetch(endpoint, {
@@ -374,13 +586,36 @@
           body: JSON.stringify(payload)
         });
         const result = await response.json();
-        if (!response.ok || !result.success) return alert(result.message || 'Failed to save user.');
+        if (!response.ok || !result.success) {
+          if (result.errors && typeof window.showFieldErrors === 'function') {
+            window.showFieldErrors(formPanel, result.errors, result.message);
+          } else if (typeof window.showFieldErrors === 'function') {
+            window.showFieldErrors(formPanel, {}, result.message || 'Failed to save user.');
+          } else {
+            alert(result.message || 'Failed to save user.');
+          }
+          if (typeof window.showAppNotification === 'function') {
+            window.showAppNotification('error', 'Save Failed', result.message || 'Validation error');
+          }
+          saveUserBtn.disabled = false;
+          saveUserBtn.textContent = originalBtnText;
+          return;
+        }
 
+        if (typeof window.showAppNotification === 'function') {
+          window.showAppNotification('success', 'User Saved', result.message || (editingUserId ? 'User updated successfully.' : 'User added successfully.'));
+        }
         closeForm();
         await loadUsers();
-        alert(result.message || (editingUserId ? 'User updated successfully.' : 'User added successfully.'));
       } catch (err) {
-        alert('Error saving user: ' + err.message);
+        if (typeof window.showFieldErrors === 'function') {
+          window.showFieldErrors(formPanel, {}, 'Error saving user: ' + err.message);
+        } else {
+          alert('Error saving user: ' + err.message);
+        }
+      } finally {
+        saveUserBtn.disabled = false;
+        saveUserBtn.textContent = originalBtnText;
       }
     });
 

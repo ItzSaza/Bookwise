@@ -51,48 +51,52 @@
         <div class="panel-head">
           <div><h3 id="panelTitle">Product Details</h3><div class="sub" id="panelSub">Fill in the item specifications</div></div>
         </div>
-        <form class="form-grid" id="productForm">
+        <form class="form-grid" id="productForm" novalidate>
           <div class="field full">
-            <label>Product Title / Name</label>
-            <input id="productName" required placeholder="e.g. Oxford English Dictionary">
+            <label for="productName">Product Title / Name</label>
+            <input id="productName" name="name" required minlength="2" maxlength="180" placeholder="e.g. Oxford English Dictionary">
           </div>
           
           <div class="field">
-            <label>Category</label>
-            <select id="categoryId" required>
-              <option>Books</option>
-              <option>School Books</option>
-              <option>Stationery</option>
-              <option>Office Supplies</option>
-              <option>Art &amp; Craft</option>
+            <label for="categoryId">Category</label>
+            <select id="categoryId" name="category_id" required>
+              <option value="">Loading categories…</option>
             </select>
           </div>
           
           <div class="field">
-            <label>ISBN / Barcode</label>
-            <input id="barcode" placeholder="Optional barcode or ISBN">
+            <label for="barcode">ISBN / Barcode</label>
+            <input id="barcode" name="isbn_barcode" maxlength="30" placeholder="Optional barcode or ISBN (e.g. 978-0-19-957144-4)">
           </div>
           
           <div class="field">
-            <label>Unit Price (Rs.)</label>
-            <input id="unitPrice" type="number" min="0" step="0.01" required placeholder="0.00">
+            <label for="unitPrice">Unit Price (Rs.)</label>
+            <input id="unitPrice" name="unit_price" type="number" min="0" max="9999999.99" step="0.01" required placeholder="0.00">
           </div>
           
           <div class="field">
-            <label>Primary Supplier</label>
-            <select id="supplierId">
+            <label for="supplierId">Primary Supplier</label>
+            <select id="supplierId" name="primary_supplier_id">
               <option value="">No Supplier</option>
             </select>
           </div>
 
           <div class="field">
-            <label>Stock Quantity</label>
-            <input id="stockQuantity" type="number" min="0" required placeholder="e.g. 50">
+            <label for="stockQuantity">Stock Quantity</label>
+            <input id="stockQuantity" name="stock_quantity" type="number" min="0" max="1000000" step="1" required placeholder="e.g. 50">
           </div>
           
           <div class="field">
-            <label>Low Stock Reorder Level</label>
-            <input id="reorderLevel" type="number" min="0" required placeholder="e.g. 10">
+            <label for="reorderLevel">Low Stock Reorder Level</label>
+            <input id="reorderLevel" name="reorder_level" type="number" min="0" max="1000000" step="1" required placeholder="e.g. 10">
+          </div>
+
+          <div class="field">
+            <label for="productStatus">Status</label>
+            <select id="productStatus" name="status">
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+            </select>
           </div>
         </form>
         
@@ -111,6 +115,7 @@
     const form = document.getElementById('productForm');
     const categorySelect = document.getElementById('categoryId');
     const supplierSelect = document.getElementById('supplierId');
+    const statusSelect = document.getElementById('productStatus');
     const submitBtn = document.getElementById('submitBtn');
     const urlParams = new URLSearchParams(window.location.search);
     const editId = urlParams.get('id');
@@ -125,9 +130,13 @@
       submitBtn.textContent = 'Update Product';
     }
 
+    function escapeHtml(val) {
+      return String(val || '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[c]));
+    }
+
     function fillSelect(select, items, label) {
       select.innerHTML = `<option value="">Select ${label}</option>` + items.map(item =>
-        `<option value="${item.id}">${item.name}</option>`
+        `<option value="${item.id}">${escapeHtml(item.name)}</option>`
       ).join('');
     }
 
@@ -150,42 +159,155 @@
         document.getElementById('productName').value = p.name || '';
         categorySelect.value = p.category_id || '';
         document.getElementById('barcode').value = p.isbn_barcode || '';
-        document.getElementById('unitPrice').value = p.unit_price || '';
+        document.getElementById('unitPrice').value = p.unit_price ?? '';
         supplierSelect.value = p.primary_supplier_id || '';
         document.getElementById('stockQuantity').value = p.stock_quantity ?? '';
         document.getElementById('reorderLevel').value = p.reorder_level ?? '';
+        if (p.status) statusSelect.value = p.status;
       }
     } catch (error) {
-      alert(error.message);
+      if (typeof window.showAppNotification === 'function') {
+        window.showAppNotification('error', 'Load Failed', error.message);
+      } else {
+        alert(error.message);
+      }
     }
 
     form.addEventListener('submit', async event => {
       event.preventDefault();
+      if (typeof window.clearFieldErrors === 'function') {
+        window.clearFieldErrors(form);
+      }
+
+      const name = document.getElementById('productName').value.trim();
+      const categoryId = categorySelect.value;
+      const barcode = document.getElementById('barcode').value.trim();
+      const unitPriceStr = document.getElementById('unitPrice').value.trim();
+      const stockQuantityStr = document.getElementById('stockQuantity').value.trim();
+      const reorderLevelStr = document.getElementById('reorderLevel').value.trim();
+      const supplierId = supplierSelect.value || null;
+      const status = statusSelect.value || 'Active';
+
+      const errors = {};
+
+      // Product Title validation
+      if (!name) {
+        errors.productName = 'Product name is required.';
+      } else if (name.length < 2 || name.length > 180) {
+        errors.productName = 'Product name must be between 2 and 180 characters.';
+      }
+
+      // Category validation
+      if (!categoryId) {
+        errors.categoryId = 'Please select a valid category.';
+      }
+
+      // Barcode validation
+      if (barcode) {
+        if (barcode.length > 30) {
+          errors.barcode = 'ISBN/Barcode cannot exceed 30 characters.';
+        } else if (!/^[0-9A-Za-z -]{3,30}$/.test(barcode)) {
+          errors.barcode = 'Barcode can only contain alphanumeric characters, spaces, and hyphens.';
+        }
+      }
+
+      // Unit Price validation
+      const priceNum = parseFloat(unitPriceStr);
+      if (unitPriceStr === '' || !Number.isFinite(priceNum)) {
+        errors.unitPrice = 'Enter a valid unit price.';
+      } else if (priceNum < 0) {
+        errors.unitPrice = 'Unit price cannot be negative.';
+      } else if (priceNum > 9999999.99) {
+        errors.unitPrice = 'Unit price cannot exceed Rs. 9,999,999.99.';
+      }
+
+      // Stock Quantity validation
+      const stockNum = parseInt(stockQuantityStr, 10);
+      if (stockQuantityStr === '' || !Number.isInteger(stockNum)) {
+        errors.stockQuantity = 'Enter a valid whole stock quantity.';
+      } else if (stockNum < 0) {
+        errors.stockQuantity = 'Stock quantity cannot be negative.';
+      } else if (stockNum > 1000000) {
+        errors.stockQuantity = 'Stock quantity cannot exceed 1,000,000 units.';
+      }
+
+      // Reorder Level validation
+      const reorderNum = parseInt(reorderLevelStr, 10);
+      if (reorderLevelStr === '' || !Number.isInteger(reorderNum)) {
+        errors.reorderLevel = 'Enter a valid whole reorder level.';
+      } else if (reorderNum < 0) {
+        errors.reorderLevel = 'Reorder level cannot be negative.';
+      } else if (reorderNum > 1000000) {
+        errors.reorderLevel = 'Reorder level cannot exceed 1,000,000 units.';
+      }
+
+      if (Object.keys(errors).length > 0) {
+        if (typeof window.showFieldErrors === 'function') {
+          window.showFieldErrors(form, errors);
+        } else {
+          alert(Object.values(errors)[0]);
+        }
+        return;
+      }
+
+      const originalBtnText = submitBtn.textContent;
+      submitBtn.disabled = true;
+      submitBtn.textContent = editId ? 'Updating…' : 'Saving…';
+
+      const payload = {
+        name,
+        category_id: parseInt(categoryId, 10),
+        isbn_barcode: barcode || null,
+        unit_price: priceNum,
+        primary_supplier_id: supplierId ? parseInt(supplierId, 10) : null,
+        stock_quantity: stockNum,
+        reorder_level: reorderNum,
+        status
+      };
+
       const endpoint = editId
         ? `api/index.php?resource=products&id=${editId}`
         : 'api/index.php?resource=products';
       const method = editId ? 'PUT' : 'POST';
 
-      const response = await fetch(endpoint, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: document.getElementById('productName').value,
-          category_id: categorySelect.value,
-          isbn_barcode: document.getElementById('barcode').value,
-          unit_price: document.getElementById('unitPrice').value,
-          primary_supplier_id: supplierSelect.value || null,
-          stock_quantity: document.getElementById('stockQuantity').value,
-          reorder_level: document.getElementById('reorderLevel').value
-        })
-      });
-      const result = await response.json();
-      if (!response.ok || !result.success) {
-        alert(result.message);
-        return;
+      try {
+        const response = await fetch(endpoint, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          if (result.errors && typeof window.showFieldErrors === 'function') {
+            window.showFieldErrors(form, result.errors, result.message);
+          } else if (typeof window.showFieldErrors === 'function') {
+            window.showFieldErrors(form, {}, result.message || 'Failed to save product.');
+          } else {
+            alert(result.message || 'Failed to save product.');
+          }
+          if (typeof window.showAppNotification === 'function') {
+            window.showAppNotification('error', 'Save Failed', result.message || 'Validation error');
+          }
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalBtnText;
+          return;
+        }
+
+        if (typeof window.showAppNotification === 'function') {
+          window.showAppNotification('success', 'Product Saved', result.message || 'Product saved successfully.');
+        }
+        setTimeout(() => {
+          window.location.href = 'inventory.html';
+        }, 250);
+      } catch (err) {
+        if (typeof window.showFieldErrors === 'function') {
+          window.showFieldErrors(form, {}, 'Network or server error: ' + err.message);
+        } else {
+          alert('Network or server error: ' + err.message);
+        }
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalBtnText;
       }
-      alert(result.message);
-      window.location.href = 'inventory.html';
     });
   })();
 </script>

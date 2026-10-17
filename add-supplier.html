@@ -54,27 +54,27 @@
         <form class="form-grid" id="supplierForm">
           <div class="field full">
             <label>Supplier / Business Name</label>
-            <input id="supplierName" required placeholder="e.g. Vijitha Yapa Distributors">
+            <input id="supplierName" name="name" required minlength="2" maxlength="150" placeholder="e.g. Vijitha Yapa Distributors">
           </div>
 
           <div class="field">
             <label>Contact Person</label>
-            <input id="contactPerson" required placeholder="e.g. K. Ranasinghe">
+            <input id="contactPerson" name="contact_person" required minlength="2" maxlength="120" placeholder="e.g. K. Ranasinghe">
           </div>
 
           <div class="field">
             <label>Phone Number</label>
-            <input id="phone" required placeholder="e.g. 077 221 5540">
+            <input id="phone" name="phone" type="tel" required pattern="^(?:\+94|0)\d{9}$" maxlength="20" placeholder="e.g. 0772215540" title="Valid Sri Lankan phone number (e.g. 0772215540 or +94772215540)">
           </div>
 
           <div class="field">
             <label>Email Address</label>
-            <input id="email" type="email" placeholder="supplier@example.com">
+            <input id="email" name="email" type="email" maxlength="150" placeholder="supplier@example.com">
           </div>
 
           <div class="field">
             <label>Product Category Supplied</label>
-            <select id="category">
+            <select id="category" name="category" required>
               <option>Books</option>
               <option>School Books</option>
               <option>Stationery</option>
@@ -86,12 +86,12 @@
 
           <div class="field full">
             <label>Address</label>
-            <input id="address" placeholder="e.g. 45 Galle Road, Colombo 03">
+            <input id="address" name="address" maxlength="255" placeholder="e.g. 45 Galle Road, Colombo 03">
           </div>
 
           <div class="field">
             <label>Payment Terms</label>
-            <select id="paymentTerms">
+            <select id="paymentTerms" name="payment_terms" required>
               <option>Cash on Delivery</option>
               <option>7 Days Credit</option>
               <option>14 Days Credit</option>
@@ -101,7 +101,7 @@
 
           <div class="field">
             <label>Status</label>
-            <select id="status">
+            <select id="status" name="status" required>
               <option>Active</option>
               <option>Inactive</option>
             </select>
@@ -109,7 +109,7 @@
 
           <div class="field full">
             <label>Notes</label>
-            <input id="notes" placeholder="Any additional notes about this supplier">
+            <input id="notes" name="notes" maxlength="1000" placeholder="Any additional notes about this supplier">
           </div>
         </form>
       </div>
@@ -128,6 +128,7 @@
     const params = new URLSearchParams(window.location.search);
     const editId = params.get('id');
     const saveBtn = document.getElementById('saveBtn');
+    const supplierForm = document.getElementById('supplierForm');
     const value = id => document.getElementById(id).value;
     const setValue = (id, val) => { document.getElementById(id).value = val ?? ''; };
 
@@ -156,36 +157,81 @@
         });
     }
 
-    document.getElementById('supplierForm').addEventListener('submit', async event => {
+    supplierForm.addEventListener('submit', async event => {
       event.preventDefault();
-      const payload = {
-        name: value('supplierName'),
-        contact_person: value('contactPerson'),
-        phone: value('phone'),
-        email: value('email'),
-        category: value('category'),
-        address: value('address'),
-        payment_terms: value('paymentTerms'),
-        status: value('status'),
-        notes: value('notes')
-      };
+      if (typeof window.clearFieldErrors === 'function') {
+        window.clearFieldErrors(supplierForm);
+      }
 
-      const endpoint = editId
-        ? `api/index.php?resource=suppliers&id=${editId}`
-        : 'api/index.php?resource=suppliers';
-
-      const response = await fetch(endpoint, {
-        method: editId ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const result = await response.json();
-      if (!response.ok || !result.success) {
-        alert(result.message);
+      const rawPhone = value('phone').replace(/[\s-]/g, '');
+      const slPhoneRegex = /^(?:\+94|0)\d{9}$/;
+      if (!slPhoneRegex.test(rawPhone)) {
+        if (typeof window.showFieldErrors === 'function') {
+          window.showFieldErrors(supplierForm, { phone: 'Enter a valid Sri Lankan phone number (e.g. 0772215540 or +94772215540).' });
+        } else {
+          alert('Enter a valid Sri Lankan phone number.');
+        }
         return;
       }
-      alert(result.message);
-      window.location.href = 'suppliers.html';
+
+      const payload = {
+        name: value('supplierName').trim(),
+        contact_person: value('contactPerson').trim(),
+        phone: rawPhone,
+        email: value('email').trim() || null,
+        category: value('category'),
+        address: value('address').trim(),
+        payment_terms: value('paymentTerms'),
+        status: value('status'),
+        notes: value('notes').trim()
+      };
+
+      const originalBtnText = saveBtn.textContent;
+      saveBtn.disabled = true;
+      saveBtn.textContent = editId ? 'Updating…' : 'Saving…';
+
+      try {
+        const endpoint = editId
+          ? `api/index.php?resource=suppliers&id=${editId}`
+          : 'api/index.php?resource=suppliers';
+
+        const response = await fetch(endpoint, {
+          method: editId ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          if (result.errors && typeof window.showFieldErrors === 'function') {
+            window.showFieldErrors(supplierForm, result.errors, result.message);
+          } else if (typeof window.showFieldErrors === 'function') {
+            window.showFieldErrors(supplierForm, {}, result.message || 'Failed to save supplier.');
+          } else {
+            alert(result.message || 'Failed to save supplier.');
+          }
+          if (typeof window.showAppNotification === 'function') {
+            window.showAppNotification('error', 'Supplier Save Failed', result.message || 'Validation error');
+          }
+          saveBtn.disabled = false;
+          saveBtn.textContent = originalBtnText;
+          return;
+        }
+
+        if (typeof window.showAppNotification === 'function') {
+          window.showAppNotification('success', 'Supplier Saved', result.message || 'Supplier details saved successfully.');
+        }
+        setTimeout(() => {
+          window.location.href = 'suppliers.html';
+        }, 250);
+      } catch (err) {
+        if (typeof window.showFieldErrors === 'function') {
+          window.showFieldErrors(supplierForm, {}, 'Network or server error: ' + err.message);
+        } else {
+          alert('Network or server error: ' + err.message);
+        }
+        saveBtn.disabled = false;
+        saveBtn.textContent = originalBtnText;
+      }
     });
   })();
 </script>
