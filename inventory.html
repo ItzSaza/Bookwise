@@ -136,6 +136,8 @@
 
     let activeCategory = '';
     let products = [];
+    let allProducts = products;
+    window.allProducts = products;
     let categories = [];
 
     function money(value) {
@@ -211,6 +213,8 @@
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.message);
       products = result.data;
+      allProducts = products;
+      window.allProducts = products;
       renderProducts();
     }
 
