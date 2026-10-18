@@ -218,7 +218,18 @@ tr:hover td{background:#FBF9F3;}
 .expense-delete-btn{color:var(--burgundy);}
 .expense-delete-btn:hover{border-color:var(--burgundy);color:var(--burgundy-deep);}
 .expense-empty{text-align:center;color:var(--muted);padding:30px 22px;}
-
+.btn-sage{background:var(--sage);color:#fff;}
+.btn-sage:hover{background:#3d5940;}
+.text-profit{color:var(--sage);font-weight:700;}
+.text-expense{color:var(--burgundy);font-weight:700;}
+.type-toggle{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#FCFAF4;margin-bottom:12px;}
+.type-toggle-btn{all:unset;cursor:pointer;padding:8px 16px;font-size:12.5px;font-weight:700;color:var(--muted);transition:all .15s;}
+.type-toggle-btn.active.profit{background:var(--sage);color:#fff;}
+.type-toggle-btn.active.expense{background:var(--burgundy);color:#fff;}
+.financial-status-pill{display:inline-flex;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;}
+.financial-status-pill.profitable{background:#E8F0E6;color:var(--sage);}
+.financial-status-pill.loss{background:#F5E4E1;color:var(--burgundy);}
+.financial-status-pill.breakeven{background:#FBF1D6;color:#9A7B12;}
 .expense-dialog{
   width:min(540px,calc(100% - 32px));
   max-width:none;

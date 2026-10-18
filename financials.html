@@ -40,19 +40,38 @@
       <div class="topbar">
         <div>
           <h1>Financial Management</h1>
-          <p class="lede">Sales income, expenses, and payments — reported daily and monthly.</p>
+          <p class="lede">Sales income, additional profits, expenses, and business profitability status.</p>
         </div>
         <div class="top-actions">
+          <button class="btn btn-sage" id="addProfitBtn">+ Add Profit</button>
           <button class="btn btn-ghost" id="addExpenseBtn">+ Add Expense</button>
           <button class="btn btn-primary" onclick="window.open('financial-report.html', '_blank')">Generate Report</button>
         </div>
       </div>
 
       <div class="stats">
-        <div class="stat"><div class="stat-label">Revenue (MTD)</div><div class="stat-val" id="revenueValue">Rs. 0</div><div class="stat-note">Paid sales from database</div></div>
-        <div class="stat alt"><div class="stat-label">Expenses (MTD)</div><div class="stat-val" id="expenseValue">Rs. 0</div><div class="stat-note">Recorded expenses</div></div>
-        <div class="stat"><div class="stat-label">Net Profit</div><div class="stat-val" id="profitValue">Rs. 0</div><div class="stat-note">Revenue minus expenses</div></div>
-        <div class="stat warn"><div class="stat-label">Outstanding</div><div class="stat-val" id="outstandingValue">Rs. 0</div><div class="stat-note down" id="outstandingNote">Unpaid invoices</div></div>
+        <div class="stat">
+          <div class="stat-label">Total Revenue (MTD)</div>
+          <div class="stat-val" id="revenueValue">Rs. 0</div>
+          <div class="stat-note" id="revenueNote">Sales + Recorded profits</div>
+        </div>
+        <div class="stat alt">
+          <div class="stat-label">Total Expenses (MTD)</div>
+          <div class="stat-val" id="expenseValue">Rs. 0</div>
+          <div class="stat-note" id="expenseNote">Recorded expenses</div>
+        </div>
+        <div class="stat" id="profitStatCard">
+          <div class="stat-label">Net Profit / Loss</div>
+          <div class="stat-val" id="profitValue">Rs. 0</div>
+          <div class="stat-note" id="profitNote">Revenue minus expenses</div>
+        </div>
+        <div class="stat warn" id="statusStatCard">
+          <div class="stat-label">Business Status</div>
+          <div class="stat-val" id="statusValue" style="margin-top:8px">
+            <span class="financial-status-pill profitable" id="statusBadge">Profitable</span>
+          </div>
+          <div class="stat-note" id="outstandingNote">0 unpaid invoices</div>
+        </div>
       </div>
 
       <div class="grid-2">
@@ -67,7 +86,7 @@
         </div>
 
         <div class="panel">
-          <div class="panel-head"><div><h3>Recent Transactions</h3></div></div>
+          <div class="panel-head"><div><h3>Recent Transactions</h3><div class="sub">Latest sales, profits &amp; expenses</div></div></div>
           <div class="panel-body flush">
             <table>
               <thead><tr><th>Ref</th><th>Type</th><th>Amount</th></tr></thead>
@@ -80,18 +99,26 @@
       <div class="panel expense-panel">
         <div class="panel-head">
           <div>
-            <h3>Expense Records</h3>
-            <div class="sub" id="expenseCount">Loading expenses…</div>
+            <h3>Financial Records (Profits &amp; Expenses)</h3>
+            <div class="sub" id="expenseCount">Loading records…</div>
           </div>
-          <button class="btn btn-primary btn-sm" id="expenseTableAddBtn" type="button">+ Add Expense</button>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <div class="tag-row" style="margin-bottom:0">
+              <button class="tag active" id="filterAllBtn" type="button">All Records</button>
+              <button class="tag" id="filterProfitsBtn" type="button">Profits Only</button>
+              <button class="tag" id="filterExpensesBtn" type="button">Expenses Only</button>
+            </div>
+            <button class="btn btn-sage btn-sm" id="tableAddProfitBtn" type="button">+ Add Profit</button>
+            <button class="btn btn-primary btn-sm" id="expenseTableAddBtn" type="button">+ Add Expense</button>
+          </div>
         </div>
         <div class="panel-body flush expense-table-wrap">
           <table class="expense-table">
             <thead>
-              <tr><th>Reference</th><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th>Actions</th></tr>
+              <tr><th>Reference</th><th>Type</th><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th>Actions</th></tr>
             </thead>
             <tbody id="expenseTableBody">
-              <tr><td colspan="6" class="expense-empty">Loading expenses…</td></tr>
+              <tr><td colspan="7" class="expense-empty">Loading records…</td></tr>
             </tbody>
           </table>
         </div>
@@ -105,23 +132,33 @@
     <div class="expense-dialog-head">
       <div>
         <div class="crumb">Financial Management</div>
-        <h2 id="expenseDialogTitle">Add Expense</h2>
+        <h2 id="expenseDialogTitle">Add Financial Entry</h2>
       </div>
       <button class="expense-close" id="closeExpenseDialog" type="button" aria-label="Close">×</button>
     </div>
     <input id="expenseId" name="id" type="hidden">
-    <div class="form-grid">
+    <input id="entryType" name="entry_type" type="hidden" value="Profit">
+    
+    <div style="margin-top:16px">
+      <label style="font-size:11.5px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px">Entry Type</label>
+      <div class="type-toggle" id="typeToggle">
+        <button type="button" class="type-toggle-btn active profit" id="typeBtnProfit" data-type="Profit">📈 Profit / Income (+)</button>
+        <button type="button" class="type-toggle-btn expense" id="typeBtnExpense" data-type="Expense">📉 Expense (-)</button>
+      </div>
+    </div>
+
+    <div class="form-grid" style="padding-top:4px">
       <div class="field">
-        <label for="expenseType">Expense category</label>
-        <input id="expenseType" name="expense_type" type="text" maxlength="100" placeholder="e.g. Utilities" required>
+        <label for="expenseType" id="expenseTypeLabel">Category</label>
+        <input id="expenseType" name="expense_type" type="text" maxlength="100" placeholder="e.g. Service, Bulk Sale, Book Fair" required>
       </div>
       <div class="field">
-        <label for="expenseDate">Expense date</label>
+        <label for="expenseDate">Date</label>
         <input id="expenseDate" name="expense_date" type="date" required>
       </div>
       <div class="field full">
         <label for="expenseDescription">Description</label>
-        <input id="expenseDescription" name="description" type="text" maxlength="255" placeholder="What was this expense for?" required>
+        <input id="expenseDescription" name="description" type="text" maxlength="255" placeholder="What is this transaction for?" required>
       </div>
       <div class="field full">
         <label for="expenseAmount">Amount (Rs.)</label>
@@ -131,7 +168,7 @@
     <div class="expense-form-error" id="expenseFormError" role="alert"></div>
     <div class="expense-dialog-actions">
       <button class="btn btn-ghost" id="cancelExpense" type="button">Cancel</button>
-      <button class="btn btn-primary" id="saveExpenseBtn" type="submit">Save Expense</button>
+      <button class="btn btn-primary" id="saveExpenseBtn" type="submit">Save Entry</button>
     </div>
   </form>
 </dialog>
@@ -147,10 +184,18 @@
     const expenseForm = document.getElementById('expenseForm');
     const formError = document.getElementById('expenseFormError');
     const saveButton = document.getElementById('saveExpenseBtn');
+    const entryTypeInput = document.getElementById('entryType');
+    const typeBtnProfit = document.getElementById('typeBtnProfit');
+    const typeBtnExpense = document.getElementById('typeBtnExpense');
+    const expenseTypeLabel = document.getElementById('expenseTypeLabel');
+    const expenseTypeInput = document.getElementById('expenseType');
+    const dialogTitle = document.getElementById('expenseDialogTitle');
+    
     let expenses = [];
+    let currentFilter = 'all';
 
     function escapeHtml(value) {
-      return String(value).replace(/[&<>"']/g, character => ({
+      return String(value ?? '').replace(/[&<>"']/g, character => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
       }[character]));
     }
@@ -162,25 +207,60 @@
       return result;
     }
 
-    function renderExpenses() {
-      document.getElementById('expenseCount').textContent =
-        `${expenses.length} ${expenses.length === 1 ? 'expense' : 'expenses'} · loaded from database`;
-      expenseTableBody.innerHTML = expenses.map(expense => `<tr>
-        <td class="cell-mono">${escapeHtml(expense.expense_ref)}</td>
-        <td>${escapeHtml(expense.expense_date)}</td>
-        <td class="cell-strong">${escapeHtml(expense.expense_type)}</td>
-        <td>${escapeHtml(expense.description)}</td>
-        <td class="expense-amount">${money(expense.amount)}</td>
-        <td>
-          <div class="row-actions">
-            <button class="icon-btn" type="button" data-edit-id="${Number(expense.id)}">Edit</button>
-            <button class="icon-btn expense-delete-btn" type="button" data-delete-id="${Number(expense.id)}">Delete</button>
-          </div>
-        </td>
-      </tr>`).join('') || '<tr><td colspan="6" class="expense-empty">No expenses recorded yet. Add your first expense to get started.</td></tr>';
+    function setFormType(type) {
+      const isProfit = type === 'Profit';
+      entryTypeInput.value = isProfit ? 'Profit' : 'Expense';
+      typeBtnProfit.className = 'type-toggle-btn ' + (isProfit ? 'active profit' : '');
+      typeBtnExpense.className = 'type-toggle-btn ' + (!isProfit ? 'active expense' : '');
+      expenseTypeLabel.textContent = isProfit ? 'Profit Category' : 'Expense Category';
+      expenseTypeInput.placeholder = isProfit ? 'e.g. Printing Service, Bulk Sale, Book Fair' : 'e.g. Utilities, Rent, Salaries';
+      
+      const isEdit = Boolean(document.getElementById('expenseId').value);
+      dialogTitle.textContent = isEdit ? `Edit ${isProfit ? 'Profit' : 'Expense'}` : `Add ${isProfit ? 'Profit' : 'Expense'}`;
+      saveButton.textContent = isEdit ? 'Save Changes' : `Save ${isProfit ? 'Profit' : 'Expense'}`;
+      if (isProfit) {
+        saveButton.className = 'btn btn-sage';
+      } else {
+        saveButton.className = 'btn btn-primary';
+      }
     }
 
-    function openExpenseForm(expense) {
+    typeBtnProfit.addEventListener('click', () => setFormType('Profit'));
+    typeBtnExpense.addEventListener('click', () => setFormType('Expense'));
+
+    function renderExpenses() {
+      const filtered = expenses.filter(item => {
+        const itemType = item.entry_type || 'Expense';
+        if (currentFilter === 'Profit') return itemType === 'Profit';
+        if (currentFilter === 'Expense') return itemType === 'Expense';
+        return true;
+      });
+
+      const profitsCount = expenses.filter(e => (e.entry_type || 'Expense') === 'Profit').length;
+      const expensesCount = expenses.filter(e => (e.entry_type || 'Expense') === 'Expense').length;
+      document.getElementById('expenseCount').textContent =
+        `${expenses.length} records (${profitsCount} profits, ${expensesCount} expenses) · loaded from database`;
+
+      expenseTableBody.innerHTML = filtered.map(expense => {
+        const isProfit = (expense.entry_type || 'Expense') === 'Profit';
+        return `<tr>
+          <td class="cell-mono">${escapeHtml(expense.expense_ref)}</td>
+          <td><span class="badge ${isProfit ? 'green' : 'red'}">${isProfit ? 'Profit' : 'Expense'}</span></td>
+          <td>${escapeHtml(expense.expense_date)}</td>
+          <td class="cell-strong">${escapeHtml(expense.expense_type)}</td>
+          <td>${escapeHtml(expense.description)}</td>
+          <td class="expense-amount ${isProfit ? 'text-profit' : 'text-expense'}">${isProfit ? '+' : '-'} ${money(expense.amount)}</td>
+          <td>
+            <div class="row-actions">
+              <button class="icon-btn" type="button" data-edit-id="${Number(expense.id)}">Edit</button>
+              <button class="icon-btn expense-delete-btn" type="button" data-delete-id="${Number(expense.id)}">Delete</button>
+            </div>
+          </td>
+        </tr>`;
+      }).join('') || `<tr><td colspan="7" class="expense-empty">No ${currentFilter === 'all' ? 'financial records' : currentFilter.toLowerCase() + 's'} recorded yet. Click above to add one.</td></tr>`;
+    }
+
+    function openExpenseForm(expense, defaultType = 'Profit') {
       expenseForm.reset();
       formError.textContent = '';
       document.getElementById('expenseId').value = expense ? expense.id : '';
@@ -192,15 +272,17 @@
       document.getElementById('expenseDate').value = expense
         ? expense.expense_date
         : today.toISOString().slice(0, 10);
-      document.getElementById('expenseDialogTitle').textContent = expense ? 'Edit Expense' : 'Add Expense';
-      saveButton.textContent = expense ? 'Save Changes' : 'Save Expense';
+      
+      const targetType = expense ? (expense.entry_type || 'Expense') : defaultType;
+      setFormType(targetType);
+
       expenseDialog.showModal();
       document.getElementById('expenseType').focus();
     }
 
     async function loadExpenses() {
       const result = await requestJson('api/index.php?resource=expenses');
-      expenses = result.data;
+      expenses = result.data || [];
       renderExpenses();
     }
 
@@ -231,36 +313,93 @@
 
     async function loadFinancials() {
       const result = await requestJson('api/index.php?resource=financials');
-      document.getElementById('revenueValue').textContent = money(result.data.revenue);
-      document.getElementById('expenseValue').textContent = money(result.data.expenses);
-      document.getElementById('profitValue').textContent = money(result.data.profit);
-      document.getElementById('outstandingValue').textContent = money(result.data.outstanding);
-      const count = Number(result.data.outstanding_count) || 0;
+      const data = result.data;
+      document.getElementById('revenueValue').textContent = money(data.revenue);
+      document.getElementById('revenueNote').textContent = `Sales: ${money(data.sales_revenue || 0)} · Other Profit: ${money(data.other_profit || 0)}`;
+      document.getElementById('expenseValue').textContent = money(data.expenses);
+      
+      const netProfit = Number(data.profit) || 0;
+      const profitEl = document.getElementById('profitValue');
+      profitEl.textContent = (netProfit < 0 ? '- ' : '') + money(Math.abs(netProfit));
+      if (netProfit > 0) {
+        profitEl.style.color = 'var(--sage)';
+      } else if (netProfit < 0) {
+        profitEl.style.color = 'var(--burgundy)';
+      } else {
+        profitEl.style.color = 'var(--navy-deep)';
+      }
+
+      const marginText = data.profit_margin !== undefined ? `${data.profit_margin}% margin · ` : '';
+      const profitNote = document.getElementById('profitNote');
+      profitNote.textContent = `${marginText}${data.status || (netProfit >= 0 ? 'Profitable' : 'Net Loss')}`;
+      profitNote.className = 'stat-note ' + (netProfit < 0 ? 'down' : '');
+
+      const statusBadge = document.getElementById('statusBadge');
+      const status = data.status || (netProfit > 0 ? 'Profitable' : (netProfit < 0 ? 'Net Loss' : 'Breakeven'));
+      statusBadge.textContent = status;
+      statusBadge.className = 'financial-status-pill ' + (status === 'Profitable' ? 'profitable' : (status === 'Net Loss' ? 'loss' : 'breakeven'));
+
+      document.getElementById('outstandingValue').textContent = money(data.outstanding);
+      const count = Number(data.outstanding_count) || 0;
       document.getElementById('outstandingNote').textContent = `${count} unpaid ${count === 1 ? 'invoice' : 'invoices'}`;
-      renderWeeklySales(result.data.weekly_sales || []);
-      transactionBody.innerHTML = result.data.transactions.map(transaction => `<tr>
-        <td class="cell-mono">${escapeHtml(transaction.ref)}</td>
-        <td>${escapeHtml(transaction.type)}</td>
-        <td>${money(transaction.amount)}</td>
-      </tr>`).join('') || '<tr><td colspan="3">No transactions recorded yet.</td></tr>';
+      
+      renderWeeklySales(data.weekly_sales || []);
+      
+      transactionBody.innerHTML = (data.transactions || []).map(transaction => {
+        const isPos = transaction.type === 'Sale' || transaction.entry_type === 'Profit' || Number(transaction.amount) > 0;
+        const displayAmount = (isPos ? '+ ' : '- ') + money(Math.abs(Number(transaction.amount)));
+        const amountClass = isPos ? 'text-profit' : 'text-expense';
+        const typeBadge = transaction.type === 'Sale' 
+          ? '<span class="badge gold" style="font-size:10px">Sale</span>' 
+          : (transaction.entry_type === 'Profit' 
+            ? '<span class="badge green" style="font-size:10px">Profit</span>' 
+            : '<span class="badge red" style="font-size:10px">Expense</span>');
+            
+        return `<tr>
+          <td class="cell-mono">${escapeHtml(transaction.ref)}</td>
+          <td>${typeBadge} <span style="font-size:12px;margin-left:4px">${escapeHtml(transaction.type)}</span></td>
+          <td class="${amountClass}" style="font-family:'JetBrains Mono',monospace;font-size:12px">${displayAmount}</td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="3">No transactions recorded yet.</td></tr>';
     }
 
     function closeExpenseForm() {
       expenseDialog.close();
     }
 
-    document.getElementById('addExpenseBtn').addEventListener('click', () => openExpenseForm(null));
-    document.getElementById('expenseTableAddBtn').addEventListener('click', () => openExpenseForm(null));
+    document.getElementById('addProfitBtn').addEventListener('click', () => openExpenseForm(null, 'Profit'));
+    document.getElementById('tableAddProfitBtn').addEventListener('click', () => openExpenseForm(null, 'Profit'));
+    document.getElementById('addExpenseBtn').addEventListener('click', () => openExpenseForm(null, 'Expense'));
+    document.getElementById('expenseTableAddBtn').addEventListener('click', () => openExpenseForm(null, 'Expense'));
     document.getElementById('closeExpenseDialog').addEventListener('click', closeExpenseForm);
     document.getElementById('cancelExpense').addEventListener('click', closeExpenseForm);
+
+    // Filters
+    const filterAllBtn = document.getElementById('filterAllBtn');
+    const filterProfitsBtn = document.getElementById('filterProfitsBtn');
+    const filterExpensesBtn = document.getElementById('filterExpensesBtn');
+
+    function setFilter(filter) {
+      currentFilter = filter;
+      filterAllBtn.className = 'tag ' + (filter === 'all' ? 'active' : '');
+      filterProfitsBtn.className = 'tag ' + (filter === 'Profit' ? 'active' : '');
+      filterExpensesBtn.className = 'tag ' + (filter === 'Expense' ? 'active' : '');
+      renderExpenses();
+    }
+
+    filterAllBtn.addEventListener('click', () => setFilter('all'));
+    filterProfitsBtn.addEventListener('click', () => setFilter('Profit'));
+    filterExpensesBtn.addEventListener('click', () => setFilter('Expense'));
 
     expenseForm.addEventListener('submit', async event => {
       event.preventDefault();
       formError.textContent = '';
       saveButton.disabled = true;
+      const originalText = saveButton.textContent;
       saveButton.textContent = 'Saving…';
       const id = document.getElementById('expenseId').value;
       const payload = {
+        entry_type: entryTypeInput.value,
         expense_type: document.getElementById('expenseType').value.trim(),
         description: document.getElementById('expenseDescription').value.trim(),
         amount: document.getElementById('expenseAmount').value,
@@ -276,12 +415,15 @@
           }
         );
         closeExpenseForm();
+        if (typeof window.showAppNotification === 'function') {
+          window.showAppNotification('success', `${payload.entry_type} Saved`, `${payload.entry_type} entry of ${money(payload.amount)} saved successfully.`);
+        }
         await Promise.all([loadExpenses(), loadFinancials()]);
       } catch (error) {
         formError.textContent = error.message;
       } finally {
         saveButton.disabled = false;
-        saveButton.textContent = id ? 'Save Changes' : 'Save Expense';
+        saveButton.textContent = originalText;
       }
     });
 
@@ -297,9 +439,10 @@
       if (!deleteButton) return;
       const expenseId = deleteButton.dataset.deleteId;
       const expense = expenses.find(item => Number(item.id) === Number(expenseId));
-      const ref = expense ? expense.expense_ref : 'this expense';
+      const ref = expense ? expense.expense_ref : 'this record';
+      const typeLabel = expense ? (expense.entry_type || 'Expense') : 'Record';
       const confirmed = typeof window.bookwiseConfirm === 'function'
-        ? await window.bookwiseConfirm(`Are you sure you want to permanently delete expense "${ref}"?`, { title: 'Delete Expense', confirmText: 'Delete' })
+        ? await window.bookwiseConfirm(`Are you sure you want to permanently delete ${typeLabel.toLowerCase()} "${ref}"?`, { title: `Delete ${typeLabel}`, confirmText: 'Delete', danger: true })
         : true;
       if (!confirmed) return;
 
@@ -308,10 +451,13 @@
         await requestJson(`api/index.php?resource=expenses&id=${encodeURIComponent(expenseId)}&name=${encodeURIComponent(ref || '')}`, {
           method: 'DELETE'
         });
+        if (typeof window.showAppNotification === 'function') {
+          window.showAppNotification('success', `${typeLabel} Deleted`, `${typeLabel} "${ref}" deleted successfully.`);
+        }
         await Promise.all([loadExpenses(), loadFinancials()]);
       } catch (error) {
         if (typeof window.showAppNotification === 'function') {
-          window.showAppNotification('error', 'Delete Expense Failed', error.message);
+          window.showAppNotification('error', `Delete ${typeLabel} Failed`, error.message);
         } else {
           alert(error.message);
         }
@@ -323,14 +469,14 @@
       try {
         await Promise.all([loadExpenses(), loadFinancials()]);
       } catch (error) {
-        expenseTableBody.innerHTML = `<tr><td colspan="6" class="expense-empty">${escapeHtml(error.message)}</td></tr>`;
+        expenseTableBody.innerHTML = `<tr><td colspan="7" class="expense-empty">${escapeHtml(error.message)}</td></tr>`;
         transactionBody.innerHTML = `<tr><td colspan="3">${escapeHtml(error.message)}</td></tr>`;
         weeklySalesChart.innerHTML = `<div class="expense-empty">${escapeHtml(error.message)}</div>`;
       }
     }
 
     refreshDashboard();
-    // Keep the dashboard in sync with sales and expenses entered elsewhere in the app.
+    // Keep dashboard in sync with sales, profits, and expenses
     window.setInterval(refreshDashboard, 30000);
     window.addEventListener('focus', refreshDashboard);
   })();

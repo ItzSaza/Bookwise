@@ -45,8 +45,8 @@
   </header>
   <div class="sub-meta">
     <div><div class="label">Report Type</div><div class="val">Financial Summary</div></div>
+    <div><div class="label">Business Status</div><div class="val" id="businessStatus">—</div></div>
     <div><div class="label">Prepared By</div><div class="val" id="preparedBy">Logged-in user</div></div>
-    <div><div class="label">Data Source</div><div class="val">Live MySQL records</div></div>
   </div>
   <section class="kpis">
     <div class="kpi-card rev"><div class="label">Total Revenue</div><div class="val" id="revenueValue">Rs. —</div></div>
@@ -55,7 +55,7 @@
     <div class="kpi-card out"><div class="label">Outstanding (all pending)</div><div class="val" id="outstandingValue">Rs. —</div></div>
   </section>
   <h3 class="section-title">Income Breakdown</h3>
-  <table><thead><tr><th>Payment Method</th><th class="right">Amount</th><th class="right">% of Revenue</th></tr></thead><tbody id="incomeBody"><tr><td colspan="3" class="empty">Loading…</td></tr></tbody></table>
+  <table><thead><tr><th>Income Stream / Tender</th><th class="right">Amount</th><th class="right">% of Revenue</th></tr></thead><tbody id="incomeBody"><tr><td colspan="3" class="empty">Loading…</td></tr></tbody></table>
   <h3 class="section-title">Expense Breakdown</h3>
   <table><thead><tr><th>Expense Category</th><th class="right">Amount</th><th class="right">% of Expenses</th></tr></thead><tbody id="expenseBody"><tr><td colspan="3" class="empty">Loading…</td></tr></tbody></table>
   <div class="summary-banner"><div><div class="label">Net result for selected period</div><div class="footnote" style="color:#d5dced">Revenue minus recorded expenses</div></div><div class="val" id="bannerProfit">Rs. —</div></div>
@@ -110,6 +110,12 @@
     $('profitValue').textContent = money(data.profit);
     $('bannerProfit').textContent = money(data.profit);
     $('outstandingValue').textContent = money(data.outstanding);
+    if ($('businessStatus')) {
+      const status = data.business_status || (Number(data.profit) > 0 ? 'Profitable' : (Number(data.profit) < 0 ? 'Net Loss' : 'Breakeven'));
+      const margin = data.profit_margin !== undefined ? ` (${data.profit_margin.toFixed(1)}% margin)` : '';
+      $('businessStatus').textContent = status + margin;
+      $('businessStatus').style.color = status === 'Profitable' ? 'var(--green)' : (status === 'Net Loss' ? 'var(--red)' : 'var(--navy)');
+    }
     const userName = document.querySelector('.current-user-name');
     if (userName) $('preparedBy').textContent = userName.textContent;
     $('incomeBody').innerHTML = data.income_breakdown.length ? data.income_breakdown.map(row =>

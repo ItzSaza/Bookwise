@@ -161,6 +161,7 @@
         <div class="lede">Create sales, manage the current order, and review recent transactions.</div>
       </div>
       <div class="pos-actions">
+        <button class="btn btn-ghost" id="refreshPosBtn" type="button" title="Sync catalog with live inventory">↻ Sync Catalog</button>
         <button class="btn btn-ghost" onclick="window.open('sales-report.html', '_blank')" type="button">Generate Report</button>
         <button class="btn btn-ghost" id="clearCartBtn">Clear Cart</button>
         <button class="btn btn-primary" id="newOrderBtn">+ New Order</button>
@@ -170,22 +171,22 @@
     <section class="stats">
       <div class="stat">
         <div class="stat-label">Today's Sales</div>
-        <div class="stat-val" id="todaySales">Rs. 48,550</div>
-        <div class="stat-note">+8.4% vs yesterday</div>
+        <div class="stat-val" id="todaySales">Rs. 0</div>
+        <div class="stat-note" id="todaySalesNote">Paid transactions today</div>
       </div>
       <div class="stat alt">
         <div class="stat-label">Orders Today</div>
-        <div class="stat-val" id="todayOrders">18</div>
-        <div class="stat-note">12 completed online</div>
+        <div class="stat-val" id="todayOrders">0</div>
+        <div class="stat-note" id="todayOrdersNote">Completed today</div>
       </div>
       <div class="stat warn">
         <div class="stat-label">Items Sold</div>
-        <div class="stat-val" id="itemsSold">64</div>
-        <div class="stat-note">Across 18 orders</div>
+        <div class="stat-val" id="itemsSold">0</div>
+        <div class="stat-note" id="itemsSoldNote">Items sold today</div>
       </div>
       <div class="stat">
         <div class="stat-label">Average Order</div>
-        <div class="stat-val" id="averageOrder">Rs. 2,697</div>
+        <div class="stat-val" id="averageOrder">Rs. 0</div>
         <div class="stat-note">Today's average</div>
       </div>
     </section>
@@ -196,7 +197,7 @@
         <div class="panel-head">
           <div>
             <h3>Books &amp; Products</h3>
-            <div class="sub">Select a book to add it to the current order.</div>
+            <div class="sub">Items synced live from Inventory. Select an item to add to the current order.</div>
           </div>
         </div>
 
@@ -204,16 +205,12 @@
           <div class="pos-search-row">
             <div class="pos-search">
               <span class="pos-search-icon">⌕</span>
-              <input id="productSearch" type="search" placeholder="Search by title, author or SKU...">
+              <input id="productSearch" type="search" placeholder="Search by title, author, category or SKU...">
             </div>
           </div>
 
           <div class="pos-category-row" id="categoryRow">
             <button class="pos-category active" data-category="All">All</button>
-            <button class="pos-category" data-category="Fiction">Fiction</button>
-            <button class="pos-category" data-category="Education">Education</button>
-            <button class="pos-category" data-category="Business">Business</button>
-            <button class="pos-category" data-category="Children">Children</button>
           </div>
 
           <div class="product-grid" id="productGrid"></div>

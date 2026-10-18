@@ -458,33 +458,27 @@ document.addEventListener("DOMContentLoaded", () => {
   // If this is another BOOKWISE page, do not run POS code.
   if (!productGrid || !cartItems) return;
 
-  let products = [
-    {id:"BK001", title:"The Silent Patient", author:"Alex Michaelides", category:"Fiction", price:1850, stock:12, cover:"TSP"},
-    {id:"BK002", title:"Atomic Habits", author:"James Clear", category:"Business", price:3200, stock:8, cover:"AH", color:"sage"},
-    {id:"BK003", title:"The Psychology of Money", author:"Morgan Housel", category:"Business", price:2850, stock:15, cover:"PM", color:"red"},
-    {id:"BK004", title:"Rich Dad Poor Dad", author:"Robert Kiyosaki", category:"Business", price:2400, stock:6, cover:"RD", color:"gold"},
-    {id:"BK005", title:"English Grammar in Use", author:"Raymond Murphy", category:"Education", price:2950, stock:9, cover:"EG"},
-    {id:"BK006", title:"Clean Code", author:"Robert C. Martin", category:"Education", price:4200, stock:5, cover:"CC", color:"sage"},
-    {id:"BK007", title:"Harry Potter and the Philosopher's Stone", author:"J. K. Rowling", category:"Fiction", price:3500, stock:11, cover:"HP", color:"gold"},
-    {id:"BK008", title:"The Alchemist", author:"Paulo Coelho", category:"Fiction", price:2100, stock:20, cover:"TA", color:"red"},
-    {id:"BK009", title:"Charlotte's Web", author:"E. B. White", category:"Children", price:1650, stock:14, cover:"CW", color:"sage"},
-    {id:"BK010", title:"The Very Hungry Caterpillar", author:"Eric Carle", category:"Children", price:1450, stock:4, cover:"VC", color:"gold"},
-    {id:"BK011", title:"Introduction to Algorithms", author:"Thomas H. Cormen", category:"Education", price:5200, stock:3, cover:"IA", color:"red"},
-    {id:"BK012", title:"Deep Work", author:"Cal Newport", category:"Business", price:2750, stock:10, cover:"DW"}
-  ];
-
+  let products = [];
+  let categories = [];
+  let isProductsLoaded = false;
   let cart = [];
   let selectedCategory = "All";
   let selectedPayment = "Cash";
   let discountPercent = 0;
+  let orders = [];
 
-  let orders = [
-    {ref:"ORD-2291", customer:"Walk-in Customer", items:3, payment:"Cash", amount:4550, status:"Paid", date:"19 Sep 2026, 17:42"},
-    {ref:"ORD-2290", customer:"N. Perera", items:2, payment:"Card", amount:6050, status:"Paid", date:"19 Sep 2026, 16:58"},
-    {ref:"ORD-2289", customer:"S. Fernando", items:4, payment:"Cash", amount:8750, status:"Pending", date:"19 Sep 2026, 15:31"},
-    {ref:"ORD-2288", customer:"Walk-in Customer", items:1, payment:"Card", amount:2100, status:"Paid", date:"19 Sep 2026, 14:46"},
-    {ref:"ORD-2287", customer:"K. Silva", items:2, payment:"Cash", amount:5200, status:"Refunded", date:"19 Sep 2026, 13:19"}
-  ];
+  function renderSalesStats(stats) {
+    if (!stats) return;
+    const salesVal = Number(stats.today_sales) || 0;
+    const ordersVal = Number(stats.today_orders) || 0;
+    const itemsVal = Number(stats.today_items) || 0;
+    const avgVal = ordersVal > 0 ? (salesVal / ordersVal) : 0;
+
+    if ($("todaySales")) $("todaySales").textContent = money(salesVal);
+    if ($("todayOrders")) $("todayOrders").textContent = String(ordersVal);
+    if ($("itemsSold")) $("itemsSold").textContent = String(itemsVal);
+    if ($("averageOrder")) $("averageOrder").textContent = money(avgVal);
+  }
 
   async function loadSavedOrders() {
     try {
@@ -493,30 +487,80 @@ document.addEventListener("DOMContentLoaded", () => {
       if (response.ok && result.success && Array.isArray(result.data)) {
         orders = result.data;
         renderOrders();
+        if (result.stats) {
+          renderSalesStats(result.stats);
+        }
       }
     } catch (_) {}
+  }
+
+  async function loadDbCategories() {
+    const categoryRow = document.getElementById("categoryRow");
+    if (!categoryRow) return;
+    try {
+      const response = await fetch("api/index.php?resource=categories");
+      const result = await response.json();
+      if (response.ok && result.success && Array.isArray(result.data)) {
+        categories = result.data;
+        const counts = {};
+        products.forEach(p => {
+          counts[p.category] = (counts[p.category] || 0) + 1;
+        });
+
+        const allActive = selectedCategory === "All" ? "active" : "";
+        let html = `<button class="pos-category ${allActive}" data-category="All">All (${products.length})</button>`;
+        categories.forEach(c => {
+          const count = counts[c.name] || 0;
+          const active = selectedCategory === c.name ? "active" : "";
+          html += `<button class="pos-category ${active}" data-category="${escapeHtml(c.name)}">${escapeHtml(c.name)} (${count})</button>`;
+        });
+        categoryRow.innerHTML = html;
+
+        categoryRow.querySelectorAll(".pos-category").forEach(button => {
+          button.addEventListener("click", () => {
+            categoryRow.querySelectorAll(".pos-category").forEach(b => b.classList.remove("active"));
+            button.classList.add("active");
+            selectedCategory = button.dataset.category;
+            renderProducts();
+          });
+        });
+      }
+    } catch (err) {
+      console.error("Error loading categories:", err);
+    }
   }
 
   async function loadDbProducts() {
     try {
       const response = await fetch("api/index.php?resource=products");
       const result = await response.json();
-      if (response.ok && result.success && Array.isArray(result.data) && result.data.length > 0) {
+      if (response.ok && result.success && Array.isArray(result.data)) {
         const colors = ["", "sage", "red", "gold"];
-        products = result.data.map((p, idx) => ({
-          id: String(p.id),
-          sku: p.sku || `BK${p.id}`,
-          title: p.name,
-          author: p.author || 'Bookwise Catalog',
-          category: p.category_name || 'General',
-          price: Number(p.unit_price) || 0,
-          stock: Number(p.stock_quantity) || 0,
-          cover: (p.name.split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || 'BK'),
-          color: colors[idx % colors.length]
-        }));
+        products = result.data.map((p, idx) => {
+          const nameWords = (p.name || 'BK').trim().split(/\s+/).slice(0, 2);
+          const initials = nameWords.map(w => w[0] || '').join('').toUpperCase() || 'BK';
+          return {
+            id: String(p.id),
+            sku: p.sku || `BK${p.id}`,
+            title: p.name,
+            author: p.author || p.isbn_barcode || p.supplier_name || 'Bookwise Inventory',
+            category: p.category_name || 'General',
+            price: Number(p.unit_price) || 0,
+            stock: Number(p.stock_quantity) || 0,
+            reorder_level: Number(p.reorder_level) || 0,
+            cover: initials,
+            color: colors[idx % colors.length]
+          };
+        });
+        isProductsLoaded = true;
         renderProducts();
+        await loadDbCategories();
       }
-    } catch (_) {}
+    } catch (err) {
+      console.error("Error loading products:", err);
+      isProductsLoaded = true;
+      renderProducts();
+    }
   }
 
   const $ = id => document.getElementById(id);
@@ -527,6 +571,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const toast = message => {
     const el = $("toast");
+    if (!el) return;
     el.textContent = message;
     el.classList.add("show");
     clearTimeout(window.bookwiseToastTimer);
@@ -534,7 +579,12 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   function renderProducts() {
-    const search = ($("productSearch").value || "").trim().toLowerCase();
+    const search = ($("productSearch") ? $("productSearch").value : "").trim().toLowerCase();
+
+    if (!isProductsLoaded) {
+      productGrid.innerHTML = `<div class="no-results">Syncing products from inventory…</div>`;
+      return;
+    }
 
     const filtered = products.filter(p => {
       const matchesCategory = selectedCategory === "All" || p.category === selectedCategory;
@@ -542,32 +592,55 @@ document.addEventListener("DOMContentLoaded", () => {
         !search ||
         p.title.toLowerCase().includes(search) ||
         p.author.toLowerCase().includes(search) ||
+        p.category.toLowerCase().includes(search) ||
+        p.sku.toLowerCase().includes(search) ||
         p.id.toLowerCase().includes(search);
 
       return matchesCategory && matchesSearch;
     });
 
-    if (!filtered.length) {
-      productGrid.innerHTML = `<div class="no-results">No books match your search.</div>`;
+    if (!products.length) {
+      productGrid.innerHTML = `
+        <div class="no-results">
+          <strong style="display:block;font-size:16px;color:var(--navy-deep);margin-bottom:6px">No products in inventory</strong>
+          There are currently no active products in the inventory catalog.<br>
+          <a href="inventory.html" class="btn btn-primary btn-sm" style="margin-top:14px;display:inline-block">Go to Inventory Management</a>
+        </div>
+      `;
       return;
     }
 
-    productGrid.innerHTML = filtered.map(p => `
-      <article class="product-card" data-product-id="${p.id}">
-        <div class="product-cover ${p.color || ""}">${p.cover}</div>
-        <div class="product-title">${escapeHtml(p.title)}</div>
-        <div class="product-author">${escapeHtml(p.author)}</div>
-        <div class="product-bottom">
-          <div>
-            <div class="product-price">${money(p.price)}</div>
-            <div class="stock-text ${p.stock <= 5 ? "low" : ""}">
-              ${p.stock <= 5 ? "Low stock" : p.stock + " in stock"}
+    if (!filtered.length) {
+      productGrid.innerHTML = `<div class="no-results">No inventory items match your search.</div>`;
+      return;
+    }
+
+    productGrid.innerHTML = filtered.map(p => {
+      const isOutOfStock = p.stock <= 0;
+      const isLowStock = !isOutOfStock && p.stock <= (p.reorder_level || 5);
+      const stockBadge = isOutOfStock
+        ? '<div class="stock-text low" style="color:var(--burgundy);font-weight:700">Out of stock</div>'
+        : (isLowStock
+          ? `<div class="stock-text low">Low stock (${p.stock} left)</div>`
+          : `<div class="stock-text">${p.stock} in stock</div>`);
+
+      return `
+        <article class="product-card" data-product-id="${p.id}" style="${isOutOfStock ? 'opacity:0.6;' : ''}">
+          <div class="product-cover ${p.color || ""}">${escapeHtml(p.cover)}</div>
+          <div class="product-title" title="${escapeHtml(p.title)}">${escapeHtml(p.title)}</div>
+          <div class="product-author">${escapeHtml(p.author)}</div>
+          <div class="product-bottom">
+            <div>
+              <div class="product-price">${money(p.price)}</div>
+              ${stockBadge}
             </div>
+            <button class="add-product" data-add="${p.id}" ${isOutOfStock ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''}>
+              ${isOutOfStock ? 'Sold Out' : 'Add'}
+            </button>
           </div>
-          <button class="add-product" data-add="${p.id}">Add</button>
-        </div>
-      </article>
-    `).join("");
+        </article>
+      `;
+    }).join("");
   }
 
   function renderCart() {
@@ -620,11 +693,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const product = products.find(p => p.id === id);
     if (!product) return;
 
+    if (product.stock <= 0) {
+      toast("This item is currently out of stock in inventory.");
+      return;
+    }
+
     const existing = cart.find(item => item.id === id);
 
     if (existing) {
       if (existing.qty >= product.stock) {
-        toast("No more stock available for this book.");
+        toast(`Only ${product.stock} ${product.stock === 1 ? 'unit' : 'units'} available in inventory.`);
         return;
       }
       existing.qty++;
@@ -755,12 +833,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
-    // Reduce demo stock.
-    cart.forEach(item => {
-      const product = products.find(p => p.id === item.id);
-      if (product) product.stock = Math.max(0, product.stock - item.qty);
-    });
-
     $("orderRef").textContent = ref;
     showReceipt(newOrder, subtotal, discount, tax);
 
@@ -768,10 +840,8 @@ document.addEventListener("DOMContentLoaded", () => {
     discountPercent = 0;
     $("discountInput").value = "";
 
-    renderProducts();
     renderCart();
-    renderOrders();
-    updateStats(newOrder);
+    await Promise.all([loadDbProducts(), loadSavedOrders()]);
   }
 
   function showReceipt(order, subtotal, discount, tax) {
@@ -1122,8 +1192,23 @@ document.addEventListener("DOMContentLoaded", () => {
     if (event.target === $("editOrderModal")) closeEditOrder();
   });
 
+  $("refreshPosBtn")?.addEventListener("click", async () => {
+    toast("Syncing with inventory…");
+    try {
+      await Promise.all([loadDbProducts(), loadSavedOrders()]);
+      toast("POS catalog synced with live inventory.");
+    } catch (_) {
+      toast("Sync failed.");
+    }
+  });
+
+  window.addEventListener("focus", () => {
+    loadDbProducts().catch(() => {});
+    loadSavedOrders().catch(() => {});
+  });
+
   loadDbProducts().catch(() => {});
-  loadSavedOrders().then(renderOrders).catch(() => renderOrders());
+  loadSavedOrders().catch(() => {});
 
   // Initial render.
   renderProducts();

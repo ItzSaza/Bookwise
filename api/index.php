@@ -288,9 +288,12 @@ function validatePurchaseOrder(array $input, PDO $database): array
     ];
 }
 
-// Validates and normalizes expense data shared by the create and update endpoints.
+// Validates and normalizes financial entry data (expenses and profits) shared by create and update endpoints.
 function validateExpense(array $input): array
 {
+    $rawType = trim((string) ($input['entry_type'] ?? 'Expense'));
+    $entryType = (strcasecmp($rawType, 'Profit') === 0) ? 'Profit' : 'Expense';
+
     $type = trim((string) ($input['expense_type'] ?? ''));
     $description = trim((string) ($input['description'] ?? ''));
     $amountValue = $input['amount'] ?? null;
@@ -305,6 +308,7 @@ function validateExpense(array $input): array
     }
 
     return [
+        'entry_type' => $entryType,
         'expense_type' => $type,
         'description' => $description,
         'amount' => $amount,
@@ -901,7 +905,20 @@ try {
              ORDER BY s.created_at DESC
              LIMIT 50'
         );
-        respond(['success' => true, 'data' => $statement->fetchAll()]);
+        $salesList = $statement->fetchAll();
+        $todayStats = $database->query(
+            "SELECT
+                COALESCE(SUM(CASE WHEN DATE(created_at) = CURRENT_DATE AND status = 'Paid' THEN total_amount ELSE 0 END), 0) AS today_sales,
+                COALESCE(SUM(CASE WHEN DATE(created_at) = CURRENT_DATE THEN 1 ELSE 0 END), 0) AS today_orders,
+                COALESCE((
+                    SELECT SUM(si.quantity)
+                    FROM sale_items si
+                    JOIN sales s2 ON s2.id = si.sale_id
+                    WHERE DATE(s2.created_at) = CURRENT_DATE
+                ), 0) AS today_items
+             FROM sales"
+        )->fetch();
+        respond(['success' => true, 'data' => $salesList, 'stats' => $todayStats]);
     }
 
     // Sale creation endpoint: validates items, looks up prices server-side, checks/decrements stock in one transaction.
@@ -1323,27 +1340,44 @@ try {
              WHERE status = 'Paid' AND created_at >= :start AND created_at < DATE_ADD(:end, INTERVAL 1 DAY)"
         );
         $salesStmt->execute(['start' => $start, 'end' => $end]);
-        $revenue = (float) $salesStmt->fetchColumn();
+        $salesRevenue = (float) $salesStmt->fetchColumn();
+
+        $profitStmt = $database->prepare(
+            "SELECT COALESCE(SUM(amount), 0) FROM expenses
+             WHERE entry_type = 'Profit' AND expense_date >= :start AND expense_date <= :end"
+        );
+        $profitStmt->execute(['start' => $start, 'end' => $end]);
+        $otherProfit = (float) $profitStmt->fetchColumn();
+
+        $revenue = $salesRevenue + $otherProfit;
 
         $expenseStmt = $database->prepare(
             "SELECT COALESCE(SUM(amount), 0) FROM expenses
-             WHERE expense_date >= :start AND expense_date <= :end"
+             WHERE entry_type = 'Expense' AND expense_date >= :start AND expense_date <= :end"
         );
         $expenseStmt->execute(['start' => $start, 'end' => $end]);
         $expenseTotal = (float) $expenseStmt->fetchColumn();
 
         $incomeBreakdownStmt = $database->prepare(
-            "SELECT payment_method AS category, COALESCE(SUM(total_amount), 0) AS amount
-             FROM sales
-             WHERE status = 'Paid' AND created_at >= :start AND created_at < DATE_ADD(:end, INTERVAL 1 DAY)
-             GROUP BY payment_method ORDER BY amount DESC"
+            "SELECT category, SUM(amount) AS amount FROM (
+                SELECT payment_method AS category, total_amount AS amount
+                FROM sales
+                WHERE status = 'Paid' AND created_at >= :start1 AND created_at < DATE_ADD(:end1, INTERVAL 1 DAY)
+                UNION ALL
+                SELECT CONCAT('Profit: ', expense_type) AS category, amount
+                FROM expenses
+                WHERE entry_type = 'Profit' AND expense_date >= :start2 AND expense_date <= :end2
+             ) AS inc GROUP BY category ORDER BY amount DESC"
         );
-        $incomeBreakdownStmt->execute(['start' => $start, 'end' => $end]);
+        $incomeBreakdownStmt->execute([
+            'start1' => $start, 'end1' => $end,
+            'start2' => $start, 'end2' => $end
+        ]);
         $incomeBreakdown = $incomeBreakdownStmt->fetchAll();
 
         $expenseBreakdownStmt = $database->prepare(
             "SELECT expense_type AS category, COALESCE(SUM(amount), 0) AS amount
-             FROM expenses WHERE expense_date >= :start AND expense_date <= :end
+             FROM expenses WHERE entry_type = 'Expense' AND expense_date >= :start AND expense_date <= :end
              GROUP BY expense_type ORDER BY amount DESC"
         );
         $expenseBreakdownStmt->execute(['start' => $start, 'end' => $end]);
@@ -1355,8 +1389,10 @@ try {
                        customer_name AS description, total_amount AS amount
                 FROM sales WHERE status = 'Paid' AND created_at >= :sale_start AND created_at < DATE_ADD(:sale_end, INTERVAL 1 DAY)
                 UNION ALL
-                SELECT expense_date AS transaction_date, expense_ref AS ref, 'Expense' AS type,
-                       CONCAT(expense_type, ' — ', description) AS description, -amount AS amount
+                SELECT expense_date AS transaction_date, expense_ref AS ref,
+                       CASE WHEN entry_type = 'Profit' THEN 'Profit' ELSE 'Expense' END AS type,
+                       CONCAT(expense_type, ' — ', description) AS description,
+                       CASE WHEN entry_type = 'Profit' THEN amount ELSE -amount END AS amount
                 FROM expenses WHERE expense_date >= :expense_start AND expense_date <= :expense_end
              ) AS ledger ORDER BY transaction_date DESC, ref DESC"
         );
@@ -1367,11 +1403,19 @@ try {
             "SELECT COALESCE(SUM(total_amount), 0) FROM sales WHERE status = 'Pending'"
         )->fetchColumn();
 
+        $netProfit = $revenue - $expenseTotal;
+        $profitMargin = $revenue > 0 ? ($netProfit / $revenue) * 100 : 0;
+        $businessStatus = $netProfit > 0 ? 'Profitable' : ($netProfit < 0 ? 'Net Loss' : 'Breakeven');
+
         respond(['success' => true, 'data' => [
             'start' => $start, 'end' => $end,
-            'revenue' => $revenue, 'expenses' => $expenseTotal,
-            'profit' => $revenue - $expenseTotal,
-            'profit_margin' => $revenue > 0 ? (($revenue - $expenseTotal) / $revenue) * 100 : 0,
+            'sales_revenue' => $salesRevenue,
+            'other_profit' => $otherProfit,
+            'revenue' => $revenue,
+            'expenses' => $expenseTotal,
+            'profit' => $netProfit,
+            'profit_margin' => $profitMargin,
+            'business_status' => $businessStatus,
             'outstanding' => $outstanding,
             'income_breakdown' => $incomeBreakdown,
             'expense_breakdown' => $expenseBreakdown,
@@ -1746,16 +1790,25 @@ try {
         ]]);
     }
 
-    // Financial summary endpoint: calculates revenue, expenses, profit, and recent transaction history for the month.
+    // Financial summary endpoint: calculates revenue, other profits, expenses, profit margin, business status, and transactions.
     if ($resource === 'financials' && $method === 'GET') {
         $salesTotal = (float) $database->query(
             "SELECT COALESCE(SUM(total_amount), 0) FROM sales
              WHERE created_at >= DATE_FORMAT(CURRENT_DATE, '%Y-%m-01') AND status = 'Paid'"
         )->fetchColumn();
+        $profitTotal = (float) $database->query(
+            "SELECT COALESCE(SUM(amount), 0) FROM expenses
+             WHERE entry_type = 'Profit' AND expense_date >= DATE_FORMAT(CURRENT_DATE, '%Y-%m-01')"
+        )->fetchColumn();
         $expenseTotal = (float) $database->query(
             "SELECT COALESCE(SUM(amount), 0) FROM expenses
-             WHERE expense_date >= DATE_FORMAT(CURRENT_DATE, '%Y-%m-01')"
+             WHERE entry_type = 'Expense' AND expense_date >= DATE_FORMAT(CURRENT_DATE, '%Y-%m-01')"
         )->fetchColumn();
+        $totalRevenue = $salesTotal + $profitTotal;
+        $netProfit = $totalRevenue - $expenseTotal;
+        $profitMargin = $totalRevenue > 0 ? round(($netProfit / $totalRevenue) * 100, 1) : 0;
+        $businessStatus = $netProfit > 0 ? 'Profitable' : ($netProfit < 0 ? 'Net Loss' : 'Breakeven');
+
         $outstandingStatement = $database->query(
             "SELECT COALESCE(SUM(total_amount), 0) AS total,
                     COUNT(*) AS invoice_count
@@ -1775,19 +1828,25 @@ try {
         )->fetchAll();
 
         $transactions = $database->query(
-            "SELECT order_ref AS ref, 'Sale' AS type, total_amount AS amount, created_at AS transaction_date
+            "SELECT order_ref AS ref, 'Sale' AS type, 'Profit' AS entry_type, total_amount AS amount, created_at AS transaction_date
              FROM sales WHERE status = 'Paid'
              UNION ALL
-             SELECT expense_ref, expense_type, -amount, expense_date
+             SELECT expense_ref AS ref, expense_type AS type, entry_type,
+                    CASE WHEN entry_type = 'Profit' THEN amount ELSE -amount END AS amount,
+                    expense_date AS transaction_date
              FROM expenses
              ORDER BY transaction_date DESC LIMIT 20"
         )->fetchAll();
         respond([
             'success' => true,
             'data' => [
-                'revenue' => $salesTotal,
+                'sales_revenue' => $salesTotal,
+                'other_profit' => $profitTotal,
+                'revenue' => $totalRevenue,
                 'expenses' => $expenseTotal,
-                'profit' => $salesTotal - $expenseTotal,
+                'profit' => $netProfit,
+                'profit_margin' => $profitMargin,
+                'status' => $businessStatus,
                 'outstanding' => (float) $outstanding['total'],
                 'outstanding_count' => (int) $outstanding['invoice_count'],
                 'weekly_sales' => $weeklySales,
@@ -1796,34 +1855,40 @@ try {
         ]);
     }
 
-    // Expense listing endpoint: returns all expense records for the financial management screen.
+    // Financial records (Expenses & Profits) listing endpoint
     if ($resource === 'expenses' && $method === 'GET') {
-        $expenses = $database->query(
-            'SELECT id, expense_ref, expense_type, description, amount, expense_date
-             FROM expenses
-             ORDER BY expense_date DESC, id DESC'
-        )->fetchAll();
-        respond(['success' => true, 'data' => $expenses]);
+        $filterType = trim((string) ($_GET['type'] ?? ''));
+        $sql = 'SELECT id, expense_ref, entry_type, expense_type, description, amount, expense_date, created_at FROM expenses';
+        $params = [];
+        if (strcasecmp($filterType, 'Profit') === 0 || strcasecmp($filterType, 'Expense') === 0) {
+            $sql .= ' WHERE entry_type = :entry_type';
+            $params['entry_type'] = ucfirst(strtolower($filterType));
+        }
+        $sql .= ' ORDER BY expense_date DESC, id DESC';
+        $stmt = $database->prepare($sql);
+        $stmt->execute($params);
+        respond(['success' => true, 'data' => $stmt->fetchAll()]);
     }
 
-    // Expense creation endpoint: validates and stores a new expense record.
+    // Financial record creation endpoint: validates and stores an expense or profit record.
     if ($resource === 'expenses' && $method === 'POST') {
         $expense = validateExpense($body);
-        $expenseRef = 'EXP-' . strtoupper(bin2hex(random_bytes(4)));
+        $prefix = ($expense['entry_type'] === 'Profit') ? 'PRF-' : 'EXP-';
+        $expenseRef = $prefix . strtoupper(bin2hex(random_bytes(4)));
         $statement = $database->prepare(
-            'INSERT INTO expenses (expense_ref, expense_type, description, amount, expense_date)
-             VALUES (:expense_ref, :expense_type, :description, :amount, :expense_date)'
+            'INSERT INTO expenses (expense_ref, entry_type, expense_type, description, amount, expense_date)
+             VALUES (:expense_ref, :entry_type, :expense_type, :description, :amount, :expense_date)'
         );
         $statement->execute(['expense_ref' => $expenseRef] + $expense);
-        respond(['success' => true, 'message' => 'Expense added successfully.', 'expense_ref' => $expenseRef, 'item_name' => $expenseRef], 201);
+        respond(['success' => true, 'message' => "{$expense['entry_type']} added successfully.", 'expense_ref' => $expenseRef, 'item_name' => $expenseRef], 201);
     }
 
-    // Expense update endpoint: changes editable fields while preserving the original reference.
+    // Financial record update endpoint: updates editable fields while preserving reference.
     if ($resource === 'expenses' && $id && $method === 'PUT') {
         $expense = validateExpense($body);
         $statement = $database->prepare(
             'UPDATE expenses
-             SET expense_type = :expense_type, description = :description,
+             SET entry_type = :entry_type, expense_type = :expense_type, description = :description,
                  amount = :amount, expense_date = :expense_date
              WHERE id = :id'
         );
@@ -1832,15 +1897,15 @@ try {
             $exists = $database->prepare('SELECT 1 FROM expenses WHERE id = :id');
             $exists->execute(['id' => $id]);
             if (!$exists->fetchColumn()) {
-                respond(['success' => false, 'message' => 'Expense was not found.'], 404);
+                respond(['success' => false, 'message' => 'Record was not found.'], 404);
             }
         }
-        respond(['success' => true, 'message' => 'Expense updated successfully.', 'item_name' => $expense['description']]);
+        respond(['success' => true, 'message' => "{$expense['entry_type']} updated successfully.", 'item_name' => $expense['description']]);
     }
 
-    // Expense deletion endpoint: removes the selected expense record.
+    // Financial record deletion endpoint: removes selected record.
     if ($resource === 'expenses' && $id && $method === 'DELETE') {
-        $expStmt = $database->prepare('SELECT expense_ref, description FROM expenses WHERE id = :id');
+        $expStmt = $database->prepare('SELECT expense_ref, entry_type, description FROM expenses WHERE id = :id');
         $expStmt->execute(['id' => $id]);
         $expRow = $expStmt->fetch();
         $itemName = $expRow ? ($expRow['expense_ref'] ?: $expRow['description']) : trim((string) ($_GET['name'] ?? ''));
@@ -1848,9 +1913,10 @@ try {
         $statement = $database->prepare('DELETE FROM expenses WHERE id = :id');
         $statement->execute(['id' => $id]);
         if ($statement->rowCount() === 0) {
-            respond(['success' => false, 'message' => 'Expense was not found.'], 404);
+            respond(['success' => false, 'message' => 'Record was not found.'], 404);
         }
-        respond(['success' => true, 'message' => 'Expense deleted successfully.', 'item_name' => $itemName ?: 'Expense']);
+        $typeName = $expRow ? $expRow['entry_type'] : 'Record';
+        respond(['success' => true, 'message' => "{$typeName} deleted successfully.", 'item_name' => $itemName ?: $typeName]);
     }
 
     // Product listing endpoint: returns active products with search/category filters, or single product by id.
