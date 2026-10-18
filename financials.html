@@ -61,16 +61,17 @@
           <div class="stat-note" id="expenseNote">Recorded expenses</div>
         </div>
         <div class="stat" id="profitStatCard">
-          <div class="stat-label">Net Profit / Loss</div>
+          <div class="stat-label" style="display:flex;justify-content:space-between;align-items:center;">
+            <span>Net Profit / Loss</span>
+            <span class="financial-status-pill profitable" id="statusBadge">Profitable</span>
+          </div>
           <div class="stat-val" id="profitValue">Rs. 0</div>
           <div class="stat-note" id="profitNote">Revenue minus expenses</div>
         </div>
-        <div class="stat warn" id="statusStatCard">
-          <div class="stat-label">Business Status</div>
-          <div class="stat-val" id="statusValue" style="margin-top:8px">
-            <span class="financial-status-pill profitable" id="statusBadge">Profitable</span>
-          </div>
-          <div class="stat-note" id="outstandingNote">0 unpaid invoices</div>
+        <div class="stat warn" id="outstandingStatCard">
+          <div class="stat-label">Outstanding Invoices</div>
+          <div class="stat-val" id="outstandingValue">Rs. 0</div>
+          <div class="stat-note down" id="outstandingNote">0 unpaid invoices</div>
         </div>
       </div>
 
@@ -176,7 +177,7 @@
 <script src="script.js"></script>
 <script>
   (async function () {
-    const money = value => 'Rs. ' + Number(value).toLocaleString('en-LK', { maximumFractionDigits: 0 });
+    const money = value => 'Rs. ' + (Number(value) || 0).toLocaleString('en-LK', { maximumFractionDigits: 0 });
     const transactionBody = document.getElementById('transactionBody');
     const weeklySalesChart = document.getElementById('weeklySalesChart');
     const expenseTableBody = document.getElementById('expenseTableBody');
@@ -287,7 +288,8 @@
     }
 
     function renderWeeklySales(rows) {
-      const totals = new Map(rows.map(row => [String(row.sale_date).slice(0, 10), Number(row.total) || 0]));
+      if (!weeklySalesChart) return;
+      const totals = new Map((rows || []).map(row => [String(row.sale_date).slice(0, 10), Number(row.total) || 0]));
       const today = new Date();
       today.setHours(12, 0, 0, 0);
       const monday = new Date(today);
@@ -301,66 +303,82 @@
       const max = Math.max(...days.map(day => day.total), 1);
       const weekTotal = days.reduce((sum, day) => sum + day.total, 0);
       weeklySalesChart.innerHTML = days.map(day => {
-        const height = day.total > 0 ? Math.max(5, Math.round((day.total / max) * 150)) : 3;
+        const height = day.total > 0 ? Math.max(8, Math.round((day.total / max) * 105)) : 3;
         return `<div class="bar-wrap" title="${escapeHtml(day.label)}: ${money(day.total)}">
           <div class="bar" style="height:${height}px" aria-label="${escapeHtml(day.label)} sales ${money(day.total)}"></div>
           <div class="bar-label">${escapeHtml(day.label)}</div>
           <div class="bar-label">${day.total ? money(day.total) : '—'}</div>
         </div>`;
       }).join('');
-      document.getElementById('weeklySalesTotal').textContent = `Current week total: ${money(weekTotal)}`;
+      const totalEl = document.getElementById('weeklySalesTotal');
+      if (totalEl) totalEl.textContent = `Current week total: ${money(weekTotal)}`;
     }
 
     async function loadFinancials() {
       const result = await requestJson('api/index.php?resource=financials');
-      const data = result.data;
-      document.getElementById('revenueValue').textContent = money(data.revenue);
-      document.getElementById('revenueNote').textContent = `Sales: ${money(data.sales_revenue || 0)} · Other Profit: ${money(data.other_profit || 0)}`;
-      document.getElementById('expenseValue').textContent = money(data.expenses);
+      const data = result.data || {};
+      
+      const setElText = (id, text) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+        return el;
+      };
+
+      setElText('revenueValue', money(data.revenue));
+      setElText('revenueNote', `Sales: ${money(data.sales_revenue || 0)} · Other Profit: ${money(data.other_profit || 0)}`);
+      setElText('expenseValue', money(data.expenses));
       
       const netProfit = Number(data.profit) || 0;
       const profitEl = document.getElementById('profitValue');
-      profitEl.textContent = (netProfit < 0 ? '- ' : '') + money(Math.abs(netProfit));
-      if (netProfit > 0) {
-        profitEl.style.color = 'var(--sage)';
-      } else if (netProfit < 0) {
-        profitEl.style.color = 'var(--burgundy)';
-      } else {
-        profitEl.style.color = 'var(--navy-deep)';
+      if (profitEl) {
+        profitEl.textContent = (netProfit < 0 ? '- ' : '') + money(Math.abs(netProfit));
+        if (netProfit > 0) {
+          profitEl.style.color = 'var(--sage)';
+        } else if (netProfit < 0) {
+          profitEl.style.color = 'var(--burgundy)';
+        } else {
+          profitEl.style.color = 'var(--navy-deep)';
+        }
       }
 
       const marginText = data.profit_margin !== undefined ? `${data.profit_margin}% margin · ` : '';
       const profitNote = document.getElementById('profitNote');
-      profitNote.textContent = `${marginText}${data.status || (netProfit >= 0 ? 'Profitable' : 'Net Loss')}`;
-      profitNote.className = 'stat-note ' + (netProfit < 0 ? 'down' : '');
+      if (profitNote) {
+        profitNote.textContent = `${marginText}${data.status || (netProfit >= 0 ? 'Profitable' : 'Net Loss')}`;
+        profitNote.className = 'stat-note ' + (netProfit < 0 ? 'down' : '');
+      }
 
-      const statusBadge = document.getElementById('statusBadge');
       const status = data.status || (netProfit > 0 ? 'Profitable' : (netProfit < 0 ? 'Net Loss' : 'Breakeven'));
-      statusBadge.textContent = status;
-      statusBadge.className = 'financial-status-pill ' + (status === 'Profitable' ? 'profitable' : (status === 'Net Loss' ? 'loss' : 'breakeven'));
+      const statusBadge = document.getElementById('statusBadge');
+      if (statusBadge) {
+        statusBadge.textContent = status;
+        statusBadge.className = 'financial-status-pill ' + (status === 'Profitable' ? 'profitable' : (status === 'Net Loss' ? 'loss' : 'breakeven'));
+      }
 
-      document.getElementById('outstandingValue').textContent = money(data.outstanding);
+      setElText('outstandingValue', money(data.outstanding));
       const count = Number(data.outstanding_count) || 0;
-      document.getElementById('outstandingNote').textContent = `${count} unpaid ${count === 1 ? 'invoice' : 'invoices'}`;
+      setElText('outstandingNote', `${count} unpaid ${count === 1 ? 'invoice' : 'invoices'}`);
       
       renderWeeklySales(data.weekly_sales || []);
       
-      transactionBody.innerHTML = (data.transactions || []).map(transaction => {
-        const isPos = transaction.type === 'Sale' || transaction.entry_type === 'Profit' || Number(transaction.amount) > 0;
-        const displayAmount = (isPos ? '+ ' : '- ') + money(Math.abs(Number(transaction.amount)));
-        const amountClass = isPos ? 'text-profit' : 'text-expense';
-        const typeBadge = transaction.type === 'Sale' 
-          ? '<span class="badge gold" style="font-size:10px">Sale</span>' 
-          : (transaction.entry_type === 'Profit' 
-            ? '<span class="badge green" style="font-size:10px">Profit</span>' 
-            : '<span class="badge red" style="font-size:10px">Expense</span>');
-            
-        return `<tr>
-          <td class="cell-mono">${escapeHtml(transaction.ref)}</td>
-          <td>${typeBadge} <span style="font-size:12px;margin-left:4px">${escapeHtml(transaction.type)}</span></td>
-          <td class="${amountClass}" style="font-family:'JetBrains Mono',monospace;font-size:12px">${displayAmount}</td>
-        </tr>`;
-      }).join('') || '<tr><td colspan="3">No transactions recorded yet.</td></tr>';
+      if (transactionBody) {
+        transactionBody.innerHTML = (data.transactions || []).map(transaction => {
+          const isPos = transaction.type === 'Sale' || transaction.entry_type === 'Profit' || Number(transaction.amount) > 0;
+          const displayAmount = (isPos ? '+ ' : '- ') + money(Math.abs(Number(transaction.amount)));
+          const amountClass = isPos ? 'text-profit' : 'text-expense';
+          const typeBadge = transaction.type === 'Sale' 
+            ? '<span class="badge gold" style="font-size:10px">Sale</span>' 
+            : (transaction.entry_type === 'Profit' 
+              ? '<span class="badge green" style="font-size:10px">Profit</span>' 
+              : '<span class="badge red" style="font-size:10px">Expense</span>');
+              
+          return `<tr>
+            <td class="cell-mono">${escapeHtml(transaction.ref)}</td>
+            <td>${typeBadge} <span style="font-size:12px;margin-left:4px">${escapeHtml(transaction.type)}</span></td>
+            <td class="${amountClass}" style="font-family:'JetBrains Mono',monospace;font-size:12px">${displayAmount}</td>
+          </tr>`;
+        }).join('') || '<tr><td colspan="3">No transactions recorded yet.</td></tr>';
+      }
     }
 
     function closeExpenseForm() {
@@ -469,9 +487,9 @@
       try {
         await Promise.all([loadExpenses(), loadFinancials()]);
       } catch (error) {
-        expenseTableBody.innerHTML = `<tr><td colspan="7" class="expense-empty">${escapeHtml(error.message)}</td></tr>`;
-        transactionBody.innerHTML = `<tr><td colspan="3">${escapeHtml(error.message)}</td></tr>`;
-        weeklySalesChart.innerHTML = `<div class="expense-empty">${escapeHtml(error.message)}</div>`;
+        if (expenseTableBody) expenseTableBody.innerHTML = `<tr><td colspan="7" class="expense-empty">${escapeHtml(error.message)}</td></tr>`;
+        if (transactionBody) transactionBody.innerHTML = `<tr><td colspan="3">${escapeHtml(error.message)}</td></tr>`;
+        if (weeklySalesChart) weeklySalesChart.innerHTML = `<div class="expense-empty">${escapeHtml(error.message)}</div>`;
       }
     }
 
